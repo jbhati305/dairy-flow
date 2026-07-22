@@ -63,7 +63,7 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-lg font-semibold text-neutral-900">Good morning, Jitesh</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">Good morning, Jitesh</h2>
         <p className="text-sm text-neutral-500">Here&apos;s what&apos;s happening at Bhati Dairy Farm today.</p>
       </div>
 

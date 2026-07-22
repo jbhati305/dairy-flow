@@ -27,10 +27,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       >
         <div className="flex items-center justify-between gap-2 px-5 py-5">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-700 text-white">
-              <Milk className="h-4.5 w-4.5" strokeWidth={2.25} />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-700 text-white">
+              <Milk className="h-5 w-5" strokeWidth={2.25} />
             </div>
-            <span className="text-[15px] font-semibold tracking-tight text-neutral-900">
+            <span className="text-xl font-bold tracking-tight text-neutral-900">
               DairyFlow
             </span>
           </div>

@@ -195,7 +195,7 @@ export default function FarmRecords() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-base font-semibold text-neutral-900">Herd & Health</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Herd & Health</h1>
           <p className="text-sm text-neutral-500">
             Manage cattle records, health history, and breeding information.
           </p>

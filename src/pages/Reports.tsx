@@ -169,7 +169,7 @@ export default function Reports() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Reports & Analytics</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">Reports & Analytics</h2>
           <p className="text-sm text-neutral-500">Farm-wide performance across production, herd, inventory, and sales.</p>
         </div>
         <Select value={period} onValueChange={setPeriod}>

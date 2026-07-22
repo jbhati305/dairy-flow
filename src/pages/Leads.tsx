@@ -93,7 +93,7 @@ export default function Leads() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Leads</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">Leads</h2>
           <p className="text-sm text-neutral-500">Track and manage your dairy sales pipeline.</p>
         </div>
         <Button onClick={() => setAddOpen(true)}>

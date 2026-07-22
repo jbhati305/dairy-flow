@@ -207,7 +207,7 @@ export default function Tasks() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Tasks & Reminders</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">Tasks & Reminders</h2>
           <p className="text-sm text-neutral-500">Track vet visits, vaccinations, follow-ups, and more.</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

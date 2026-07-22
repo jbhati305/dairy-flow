@@ -180,7 +180,7 @@ export default function MilkProduction() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Milk Production</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">Milk Production</h2>
           <p className="text-sm text-neutral-500">Track daily yield, quality, and rejections across herds.</p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>

@@ -175,6 +175,13 @@ export default function Inventory() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Inventory</h1>
+          <p className="text-sm text-neutral-500">Track feed, medicine, and supply stock across the farm.</p>
+        </div>
+      </div>
+
       {attentionItems.length > 0 && (
         <button
           onClick={() => setAttentionOnly((v) => !v)}
