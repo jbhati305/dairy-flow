@@ -8,9 +8,11 @@ interface KanbanBoardProps {
   stages: LeadStage[];
   onOpenLead: (lead: Lead) => void;
   onMoveStage: (leadId: string, stage: LeadStage) => void;
+  onMarkContacted: (leadId: string) => void;
+  onRescheduleFollowUp: (leadId: string) => void;
 }
 
-export function KanbanBoard({ leads, stages, onOpenLead, onMoveStage }: KanbanBoardProps) {
+export function KanbanBoard({ leads, stages, onOpenLead, onMoveStage, onMarkContacted, onRescheduleFollowUp }: KanbanBoardProps) {
   const [dragOverStage, setDragOverStage] = useState<LeadStage | null>(null);
 
   function handleDragStart(e: React.DragEvent, leadId: string) {
@@ -57,6 +59,8 @@ export function KanbanBoard({ leads, stages, onOpenLead, onMoveStage }: KanbanBo
                   stages={stages}
                   onOpen={onOpenLead}
                   onMoveStage={onMoveStage}
+                  onMarkContacted={onMarkContacted}
+                  onRescheduleFollowUp={onRescheduleFollowUp}
                   onDragStart={handleDragStart}
                 />
               ))}

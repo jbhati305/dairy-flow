@@ -1,14 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-  AlertTriangle,
-  Boxes,
-  PackageX,
-  CalendarClock,
-  Search,
-  Plus,
-  Pencil,
-} from "lucide-react";
+import { AlertTriangle, Boxes, PackageX, CalendarClock, Search, Plus, SlidersHorizontal, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +22,11 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { StatCard } from "@/components/shared/StatCard";
-import { inventoryItems as initialInventoryItems } from "@/data/inventory";
+import { AdjustStockDialog } from "@/components/inventory/AdjustStockDialog";
+import { ItemDetailsDialog } from "@/components/inventory/ItemDetailsDialog";
+import { useAppData } from "@/store/AppDataContext";
+import { computeInventoryStatus } from "@/store/selectors";
+import { daysUntil, formatDate, TODAY } from "@/lib/date";
 import type { InventoryCategory, InventoryItem, InventoryStatus } from "@/types";
 
 const categories: InventoryCategory[] = [
@@ -51,21 +47,6 @@ const statusBadgeVariant: Record<InventoryStatus, "success" | "warning" | "dange
   "Expiring Soon": "warning",
 };
 
-function computeStatus(currentStock: number, minRequired: number, expiryDate: string | null): InventoryStatus {
-  if (currentStock === 0) return "Out of Stock";
-  if (currentStock <= minRequired) return "Low Stock";
-  if (expiryDate) {
-    const daysUntil = (new Date(expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-    if (daysUntil >= 0 && daysUntil <= 30) return "Expiring Soon";
-  }
-  return "In Stock";
-}
-
-function formatExpiry(date: string | null) {
-  if (!date) return "—";
-  return new Date(date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-}
-
 const emptyForm = {
   name: "",
   category: "Cattle Feed" as InventoryCategory,
@@ -79,23 +60,32 @@ const emptyForm = {
 export default function Inventory() {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [items, setItems] = useState<InventoryItem[]>(initialInventoryItems);
+  const { state, addInventoryItem, adjustInventory, addTask } = useAppData();
+  const items = state.inventory;
+
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [updateItem, setUpdateItem] = useState<InventoryItem | null>(null);
-  const [newStockValue, setNewStockValue] = useState("");
+  const [viewItem, setViewItem] = useState<InventoryItem | null>(null);
+  const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
 
   useEffect(() => {
-    if (searchParams.get("new") === "1") {
-      setAddOpen(true);
+    if (searchParams.get("new") === "1") setAddOpen(true);
+    const openId = searchParams.get("open");
+    if (openId) {
+      const item = items.find((i) => i.id === openId);
+      if (item) setViewItem(item);
+    }
+    if (searchParams.get("new") || openId) {
       const next = new URLSearchParams(searchParams);
       next.delete("new");
+      next.delete("open");
       setSearchParams(next, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const attentionItems = useMemo(
     () => items.filter((i) => i.status === "Low Stock" || i.status === "Out of Stock"),
@@ -143,34 +133,36 @@ export default function Inventory() {
       minRequired,
       supplier: form.supplier.trim(),
       expiryDate,
-      status: computeStatus(currentStock, minRequired, expiryDate),
+      status: computeInventoryStatus({ currentStock, minRequired, expiryDate }),
     };
-    setItems((prev) => [newItem, ...prev]);
+    addInventoryItem(newItem);
     setAddOpen(false);
     resetForm();
     toast({ title: "Item added", description: `${newItem.name} has been added to inventory.`, variant: "success" });
   };
 
-  const openUpdateDialog = (item: InventoryItem) => {
-    setUpdateItem(item);
-    setNewStockValue(String(item.currentStock));
-  };
+  function handleAdjustSubmit(args: { transactionType: import("@/types").InventoryTransactionType; quantity: number; date: string; notes?: string; supplier?: string }) {
+    if (!adjustItem) return;
+    adjustInventory({ itemId: adjustItem.id, ...args });
+    toast({ title: "Transaction recorded", description: `${args.transactionType} — ${adjustItem.name}.`, variant: "success" });
+    setAdjustItem(null);
+    setViewItem(null);
+  }
 
-  const handleUpdateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!updateItem) return;
-    const stockValue = Number(newStockValue);
-    if (Number.isNaN(stockValue) || stockValue < 0) {
-      toast({ title: "Enter a valid stock quantity", variant: "error" });
-      return;
-    }
-    const status = computeStatus(stockValue, updateItem.minRequired, updateItem.expiryDate);
-    setItems((prev) =>
-      prev.map((i) => (i.id === updateItem.id ? { ...i, currentStock: stockValue, status } : i))
-    );
-    toast({ title: "Stock updated", description: `Stock updated for ${updateItem.name}.`, variant: "success" });
-    setUpdateItem(null);
-  };
+  function handleCreateRestockTask(item: InventoryItem) {
+    addTask({
+      id: `TSK-${Date.now()}`,
+      title: `Reorder ${item.name}`,
+      category: "Inventory Purchase",
+      relatedRecord: item.name,
+      dueDate: TODAY,
+      priority: item.status === "Out of Stock" ? "High" : "Medium",
+      status: "Pending",
+      linkedInventoryId: item.id,
+    });
+    toast({ title: "Restock task created", description: `Added to Tasks for ${item.name}.`, variant: "success" });
+    setViewItem(null);
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -243,41 +235,63 @@ export default function Inventory() {
         </div>
 
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[960px] text-left text-sm">
             <thead>
               <tr className="border-b border-neutral-200 text-xs text-neutral-500">
                 <th className="py-2 pr-4 font-medium">Item</th>
                 <th className="py-2 pr-4 font-medium">Category</th>
                 <th className="py-2 pr-4 font-medium">Current Stock</th>
-                <th className="py-2 pr-4 font-medium">Unit</th>
                 <th className="py-2 pr-4 font-medium">Min. Required</th>
-                <th className="py-2 pr-4 font-medium">Supplier</th>
-                <th className="py-2 pr-4 font-medium">Expiry Date</th>
+                <th className="py-2 pr-4 font-medium">Expiry</th>
                 <th className="py-2 pr-4 font-medium">Status</th>
                 <th className="py-2 pr-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map((item) => (
-                <tr key={item.id} className="border-b border-neutral-100 last:border-0">
-                  <td className="py-3 pr-4 font-medium text-neutral-900">{item.name}</td>
-                  <td className="py-3 pr-4 text-neutral-600">{item.category}</td>
-                  <td className="py-3 pr-4 text-neutral-600">{item.currentStock}</td>
-                  <td className="py-3 pr-4 text-neutral-600">{item.unit}</td>
-                  <td className="py-3 pr-4 text-neutral-600">{item.minRequired}</td>
-                  <td className="py-3 pr-4 text-neutral-600">{item.supplier}</td>
-                  <td className="py-3 pr-4 text-neutral-600">{formatExpiry(item.expiryDate)}</td>
-                  <td className="py-3 pr-4">
-                    <Badge variant={statusBadgeVariant[item.status]}>{item.status}</Badge>
-                  </td>
-                  <td className="py-3 pr-4 text-right">
-                    <Button variant="outline" size="sm" onClick={() => openUpdateDialog(item)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                      Update Stock
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {filteredItems.map((item) => {
+                const days = item.expiryDate ? daysUntil(item.expiryDate) : null;
+                const dualRisk = item.status === "Low Stock" && item.expiryDate && days !== null && days <= 30;
+                return (
+                  <tr key={item.id} className="border-b border-neutral-100 last:border-0">
+                    <td className="py-3 pr-4 font-medium text-neutral-900">{item.name}</td>
+                    <td className="py-3 pr-4 text-neutral-600">{item.category}</td>
+                    <td className="py-3 pr-4 text-neutral-600">
+                      {item.currentStock} {item.unit}
+                    </td>
+                    <td className="py-3 pr-4 text-neutral-600">
+                      {item.minRequired} {item.unit}
+                    </td>
+                    <td className="py-3 pr-4 text-neutral-600">
+                      {item.expiryDate ? (
+                        <span className={days !== null && days <= 14 ? "font-medium text-red-600" : undefined}>
+                          {formatDate(item.expiryDate)}
+                          {days !== null && days >= 0 && ` (${days}d)`}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge variant={statusBadgeVariant[item.status]}>{item.status}</Badge>
+                        {dualRisk && <Badge variant="danger">Also expiring</Badge>}
+                      </div>
+                    </td>
+                    <td className="py-3 pr-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button variant="ghost" size="sm" onClick={() => setViewItem(item)}>
+                          <Eye className="h-3.5 w-3.5" />
+                          View
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setAdjustItem(item)}>
+                          <SlidersHorizontal className="h-3.5 w-3.5" />
+                          Adjust Stock
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {filteredItems.length === 0 && (
@@ -396,44 +410,17 @@ export default function Inventory() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!updateItem} onOpenChange={(open) => !open && setUpdateItem(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Update Stock</DialogTitle>
-            <DialogDescription>
-              {updateItem ? `Set the new stock quantity for ${updateItem.name}.` : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleUpdateSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="new-stock">
-                New Stock {updateItem ? `(${updateItem.unit})` : ""}
-              </Label>
-              <Input
-                id="new-stock"
-                type="number"
-                min={0}
-                value={newStockValue}
-                onChange={(e) => setNewStockValue(e.target.value)}
-                autoFocus
-                required
-              />
-              {updateItem && (
-                <p className="text-xs text-neutral-500">
-                  Current: {updateItem.currentStock} {updateItem.unit} · Minimum required: {updateItem.minRequired}{" "}
-                  {updateItem.unit}
-                </p>
-              )}
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setUpdateItem(null)}>
-                Cancel
-              </Button>
-              <Button type="submit">Save Stock</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <ItemDetailsDialog
+        item={viewItem}
+        transactions={state.inventoryTransactions}
+        onOpenChange={(open) => !open && setViewItem(null)}
+        onAdjustStock={(item) => {
+          setAdjustItem(item);
+        }}
+        onCreateRestockTask={handleCreateRestockTask}
+      />
+
+      <AdjustStockDialog item={adjustItem} onOpenChange={(open) => !open && setAdjustItem(null)} onSubmit={handleAdjustSubmit} />
     </div>
   );
 }

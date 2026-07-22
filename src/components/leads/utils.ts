@@ -1,28 +1,18 @@
-import type { LeadStage } from "@/types";
+import type { LeadStage, TrialOrderStatus } from "@/types";
+import { TODAY, formatDate, isPast, isPastOrToday } from "@/lib/date";
 
-export const TODAY = "2026-07-22";
+export { TODAY, formatDate };
 
 export function formatCurrency(value: number): string {
   return `₹${value.toLocaleString("en-IN")}`;
 }
 
-export function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—";
-  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
 export function isFollowUpOverdue(nextFollowUp: string | null): boolean {
-  if (!nextFollowUp) return false;
-  return nextFollowUp < TODAY;
+  return isPast(nextFollowUp);
 }
 
 export function isFollowUpDue(nextFollowUp: string | null): boolean {
-  if (!nextFollowUp) return false;
-  return nextFollowUp <= TODAY;
+  return isPastOrToday(nextFollowUp);
 }
 
 export const stageBadgeVariant: Record<
@@ -36,4 +26,12 @@ export const stageBadgeVariant: Record<
   Negotiation: "warning",
   Won: "success",
   Lost: "outline",
+};
+
+export const trialBadgeVariant: Record<TrialOrderStatus, "neutral" | "brand" | "success" | "warning" | "danger" | "info" | "outline"> = {
+  "Not Started": "neutral",
+  Scheduled: "info",
+  "In Progress": "warning",
+  Completed: "success",
+  "Not Applicable": "outline",
 };

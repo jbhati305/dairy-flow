@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   ClipboardList,
   AlertTriangle,
@@ -39,11 +40,11 @@ import {
 } from "@/components/ui/dialog";
 import { StatCard } from "@/components/shared/StatCard";
 import { useToast } from "@/components/ui/toast";
-import { tasks as initialTasks } from "@/data/tasks";
+import { useAppData } from "@/store/AppDataContext";
+import { computeOverdueTasks } from "@/store/selectors";
+import { TODAY, formatDate } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import type { Task, TaskCategory, TaskPriority, TaskStatus } from "@/types";
-
-const TODAY = "2026-07-22";
 
 const categories: TaskCategory[] = [
   "Veterinary Visit",
@@ -82,14 +83,6 @@ function isOverdue(task: Task) {
   return task.dueDate < TODAY && task.status !== "Completed";
 }
 
-function formatDate(iso: string) {
-  return new Date(iso + "T00:00:00").toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
 function startOfWeek(iso: string) {
   const d = new Date(iso + "T00:00:00");
   const day = d.getDay();
@@ -118,16 +111,31 @@ const emptyForm: NewTaskForm = {
 
 export default function Tasks() {
   const { toast } = useToast();
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { state, addTask, updateTaskStatus } = useAppData();
+  const tasks = state.tasks;
+
   const [statusFilter, setStatusFilter] = useState<"All" | TaskStatus>("All");
   const [categoryFilter, setCategoryFilter] = useState<"All" | TaskCategory>("All");
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<NewTaskForm>(emptyForm);
 
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (openId) {
+      const task = tasks.find((t) => t.id === openId);
+      if (task) setSearch(task.title);
+      const next = new URLSearchParams(searchParams);
+      next.delete("open");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const stats = useMemo(() => {
     const pending = tasks.filter((t) => t.status === "Pending").length;
-    const overdue = tasks.filter(isOverdue).length;
+    const overdue = computeOverdueTasks(tasks).length;
     const highPriority = tasks.filter((t) => t.priority === "High" && t.status !== "Completed").length;
     const weekStart = startOfWeek(TODAY);
     const completedThisWeek = tasks.filter(
@@ -141,18 +149,13 @@ export default function Tasks() {
     return tasks
       .filter((t) => statusFilter === "All" || t.status === statusFilter)
       .filter((t) => categoryFilter === "All" || t.category === categoryFilter)
-      .filter(
-        (t) =>
-          !q ||
-          t.title.toLowerCase().includes(q) ||
-          t.relatedRecord.toLowerCase().includes(q)
-      )
+      .filter((t) => !q || t.title.toLowerCase().includes(q) || t.relatedRecord.toLowerCase().includes(q))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }, [tasks, statusFilter, categoryFilter, search]);
 
   function toggleComplete(task: Task) {
     const nextStatus: TaskStatus = task.status === "Completed" ? "Pending" : "Completed";
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: nextStatus } : t)));
+    updateTaskStatus(task.id, nextStatus);
     toast({
       title: nextStatus === "Completed" ? "Task marked complete" : "Task marked pending",
       description: task.title,
@@ -163,7 +166,7 @@ export default function Tasks() {
   function handleAddTask() {
     if (!form.title.trim() || !form.relatedRecord.trim() || !form.dueDate) return;
     const newTask: Task = {
-      id: `TSK-${String(tasks.length + 1).padStart(3, "0")}-${Date.now().toString().slice(-4)}`,
+      id: `TSK-${Date.now()}`,
       title: form.title.trim(),
       category: form.category,
       relatedRecord: form.relatedRecord.trim(),
@@ -171,7 +174,7 @@ export default function Tasks() {
       priority: form.priority,
       status: form.status,
     };
-    setTasks((prev) => [newTask, ...prev]);
+    addTask(newTask);
     setForm(emptyForm);
     setDialogOpen(false);
     toast({ title: "Task added", description: newTask.title, variant: "success" });
@@ -209,10 +212,7 @@ export default function Tasks() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <Label>Category</Label>
-                  <Select
-                    value={form.category}
-                    onValueChange={(v) => setForm((f) => ({ ...f, category: v as TaskCategory }))}
-                  >
+                  <Select value={form.category} onValueChange={(v) => setForm((f) => ({ ...f, category: v as TaskCategory }))}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -238,19 +238,11 @@ export default function Tasks() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="dueDate">Due Date</Label>
-                  <Input
-                    id="dueDate"
-                    type="date"
-                    value={form.dueDate}
-                    onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
-                  />
+                  <Input id="dueDate" type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label>Priority</Label>
-                  <Select
-                    value={form.priority}
-                    onValueChange={(v) => setForm((f) => ({ ...f, priority: v as TaskPriority }))}
-                  >
+                  <Select value={form.priority} onValueChange={(v) => setForm((f) => ({ ...f, priority: v as TaskPriority }))}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -265,10 +257,7 @@ export default function Tasks() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label>Status</Label>
-                  <Select
-                    value={form.status}
-                    onValueChange={(v) => setForm((f) => ({ ...f, status: v as TaskStatus }))}
-                  >
+                  <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v as TaskStatus }))}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -317,10 +306,7 @@ export default function Tasks() {
                   className="w-full pl-8 sm:w-56"
                 />
               </div>
-              <Select
-                value={categoryFilter}
-                onValueChange={(v) => setCategoryFilter(v as "All" | TaskCategory)}
-              >
+              <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as "All" | TaskCategory)}>
                 <SelectTrigger className="sm:w-48">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
@@ -345,9 +331,7 @@ export default function Tasks() {
           </Tabs>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
-          {filteredTasks.length === 0 && (
-            <p className="py-8 text-center text-sm text-neutral-500">No tasks match your filters.</p>
-          )}
+          {filteredTasks.length === 0 && <p className="py-8 text-center text-sm text-neutral-500">No tasks match your filters.</p>}
           {filteredTasks.map((task) => {
             const Icon = categoryIcons[task.category];
             const overdue = isOverdue(task);
@@ -376,12 +360,7 @@ export default function Tasks() {
                   </span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p
-                    className={cn(
-                      "text-sm font-medium",
-                      completed ? "text-neutral-400 line-through" : "text-neutral-900"
-                    )}
-                  >
+                  <p className={cn("text-sm font-medium", completed ? "text-neutral-400 line-through" : "text-neutral-900")}>
                     {task.title}
                   </p>
                   <p className="mt-0.5 text-xs text-neutral-500">

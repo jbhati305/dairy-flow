@@ -1,6 +1,6 @@
 # DairyFlow
 
-A frontend-only prototype of a business management platform for dairy farms — built for **Bhati Dairy Farm** (Jodhpur, Rajasthan). React, TypeScript, Vite, Tailwind CSS, Radix-based UI components, and Recharts. No backend: all data is mocked and interactions update in-memory state. See `PRODUCT_NOTES.md` for the full product rationale (target users, problems, principles, and scope).
+A frontend-only prototype of a business management platform for dairy farms — built for **Bhati Dairy Farm** (Jodhpur, Rajasthan). React, TypeScript, Vite, Tailwind CSS, Radix-based UI components, and Recharts. No backend: all data lives in a single shared React Context + reducer, persisted to `localStorage`. See `PRODUCT_NOTES.md` for the full product rationale and `DEMO_SCRIPT.md` for a guided walkthrough.
 
 ## Getting started
 
@@ -17,70 +17,82 @@ npm run lint      # oxlint over src/
 npm run preview   # preview the production build locally
 ```
 
+## Architecture
+
+All domain data (animals, milk production entries, inventory items + transactions, leads, tasks, activity log) lives in one shared store: `src/store/AppDataContext.tsx` (Context + reducer, persisted to a versioned `localStorage` key) and `src/store/selectors.ts` (pure derived calculations — KPIs, alerts, herd summary, available-to-sell capacity, lead conversion, inventory consumption). Every page reads from this single source, so the same metric never disagrees with itself across screens, and every reducer action is undoable in spirit via the header's **Reset Demo Data** action.
+
+Historical data (90 days of milk production, ~30–40 inventory transactions) is generated deterministically (`src/data/milkProduction.ts`, `src/data/inventory.ts`) — same numbers every time the demo resets, fully explainable, no `Math.random()`.
+
 ## Screens & features
 
 ### Dashboard
 ![Dashboard](docs/screenshots/dashboard.png)
 
-- KPI tiles: total cattle, lactating cattle, milk produced today, average yield/animal, low-stock items, active sales leads.
-- 7-day milk production trend chart.
-- Herd overview by status (lactating / dry / pregnant / calves / under treatment).
-- "Needs Attention" alerts feed and a recent-activity timeline.
-- One-click quick actions (record milk, add cattle, update inventory, add lead).
-- **Farm Assistant** panel (right side): a chat box with text and voice (mic) input that answers natural-language questions about the farm — herd status, today's production, low-stock items, lead pipeline, open tasks, active alerts — computed live from the app's mock data. Voice input uses the browser's built-in Speech Recognition API; the mic button disables itself gracefully in browsers that don't support it.
+- **Today's Priorities** — curated, actionable alert cards (vaccination due, yield decline, low stock, overdue follow-up), each with one-tap resolutions (Mark completed, Adjust Stock, Mark contacted, Snooze, Create task) rather than passive descriptions.
+- KPI tiles derived from the shared store: total cattle, lactating cattle, milk produced today, average yield/animal, low-stock items, active sales leads.
+- 7-day milk production trend chart and herd overview by status.
+- **Available to Sell** — an estimate of surplus milk for new buyers (today's production, minus a processing reserve, minus litres already committed to signed buyers), with a capacity-gap warning.
+- Recent-activity timeline logged automatically by every write action across the app.
+- **Farm Assistant** — a floating "Ask DairyFlow" button opening a slide-over chat with text and voice (mic) input. Answers deterministically from the shared store (not a hosted LLM, by design) and includes clickable suggested questions and in-chat links to the relevant page.
 
-### Farm Records
-![Farm Records](docs/screenshots/farm-records.png)
+### Herd & Health
+![Herd & Health](docs/screenshots/farm-records.png)
 
-- Searchable, filterable (breed / health status / lactation status), sortable, paginated cattle table.
-- **Add Animal** dialog to create a new record.
-- **Edit** action on every row (and inside the details view) to update any field — including health status, lactation status, and yield — with changes reflected immediately and confirmed by a toast.
-- **View** action opens a details dialog with tabs for Overview, Health history, Breeding info, and a recent-yield chart.
+- Searchable, filterable (breed / health status / lactation status), sortable, paginated cattle table with **Add** and **Edit**.
+- Animal detail view with quick actions — **Log health event**, **Record vaccination**, **Add breeding event**, **Record milk yield**, **Create veterinary task** — plus a health timeline (vaccination, check-up, treatment, illness, recovery, breeding events) and any open tasks linked to that animal, completable in place.
 
 ### Milk Production
 ![Milk Production](docs/screenshots/milk-production.png)
 
-- Morning / evening / total production, average yield, and rejected-milk summary tiles.
-- 7-day production trend chart.
-- Production log table with fat %, SNF %, and quality status per herd group.
+- Morning / evening / total production, average yield, rejected-milk, and fat/SNF summary tiles — all matching the Dashboard's numbers exactly.
+- 14-day production trend chart with insights (change vs. yesterday, best-performing herd, animals with a meaningful yield decline — clickable through to their record).
 - **Record Production** dialog with auto-computed quality status.
 
 ### Inventory
 ![Inventory](docs/screenshots/inventory.png)
 
-- Low-stock alert banner and stock-status summary tiles.
-- Searchable, filterable inventory table (category, stock status) covering feed, supplements, medicines, vaccines, cleaning supplies, and equipment.
-- **Add Item** and **Update Stock** dialogs with automatic status recalculation (In Stock / Low Stock / Out of Stock / Expiring Soon).
+- Low-stock alert banner, stock-status summary tiles, and dual-risk badges (an item that's both low-stock *and* expiring shows both conditions, never hides one).
+- **Adjust Stock** — a transaction-based workflow (Stock In / Consumed / Wastage / Expired / Correction) with date, supplier, and notes, replacing ambiguous balance-editing. Every transaction is stored and feeds the Reports consumption chart.
+- Item details dialog with recent transaction history and a **Create restock task** shortcut.
 
 ### Leads (CRM)
 ![Leads](docs/screenshots/leads.png)
 
-- Kanban pipeline across 7 stages (New Inquiry → Contacted → Visit Scheduled → Proposal Sent → Negotiation → Won / Lost).
-- Move a lead by drag-and-drop **or** via a reliable "Move to..." dropdown on every card.
-- Table view toggle with search and stage filter.
-- **Add Lead** dialog; pipeline value and follow-up-due stats update live.
+- Dairy-specific fields: required litres/day, product type, price/litre, delivery location/distance/timing, trial order status — alongside the standard stage, source, and follow-up fields.
+- Kanban pipeline across 7 stages with drag-and-drop **and** a reliable "Move to..." menu; quick actions for Mark contacted, Reschedule follow-up, Mark trial complete, Mark Won/Lost.
+- Table view toggle; a capacity banner warns when advanced-stage demand exceeds the farm's estimated available surplus (tied directly to Milk Production).
 
 ### Tasks
 ![Tasks](docs/screenshots/tasks.png)
 
-- Filterable list of vet visits, vaccinations, breeding follow-ups, inventory purchases, buyer follow-ups, and equipment maintenance.
+- Filterable list of vet visits, vaccinations, breeding follow-ups, inventory purchases, buyer follow-ups, and equipment maintenance — shared with Herd & Health and Inventory quick actions.
 - Overdue items flagged in red; one-click complete/reopen toggle.
-- **Add Task** dialog.
 
 ### Reports
 ![Reports](docs/screenshots/reports.png)
 
-- Farm-wide KPIs: weekly milk total, average yield, herd productivity, lead conversion rate, expected monthly pipeline value, inventory items needing attention.
-- Charts: milk production trend, herd productivity by breed, inventory stock health, sales lead conversion by stage, and expected value by buyer type.
+- A working **period selector** (Last 7 / 30 / 90 Days) that re-aggregates every chart and KPI on the page from the same shared selectors used elsewhere.
+- Auto-generated, plain-language **Insights** (e.g. "Milk production increased 3.4% compared with the previous period", "Holstein Friesian animals had the highest average yield").
+- Charts: milk production trend, herd productivity by breed (using real lactating-animal counts), inventory stock health and consumption, and sales lead conversion.
+
+### Global search
+Press the search bar (or `⌘K` / `Ctrl K`) anywhere in the app for a command-style dialog searching animals, inventory items, leads, and tasks by name — selecting a result navigates to and opens that record.
 
 ## Design decisions
 
 - Deep green as the primary brand accent on white/neutral surfaces; amber and red are reserved for genuine warning states.
-- A small shared UI kit (button, card, badge, dialog, select, tabs, dropdown, toast, etc.) is used consistently across every screen.
-- The global "Add Record" menu in the header deep-links into each page's own add dialog (`?new=1`), so quick actions always land in the right place.
+- A small shared UI kit (button, card, badge, dialog, select, tabs, dropdown, toast, etc.) is used consistently across every screen, with each module's layout tailored to its primary workflow rather than a repeated "KPI row + table" template everywhere.
+- The global "Add Record" menu in the header deep-links into each page's own add dialog (`?new=1`); search results deep-link into detail views (`?open=<id>`).
+
+## Cross-module scenarios (manually verified)
+
+1. **Inventory**: open a low-stock item → record a Stock In transaction → status, dashboard low-stock KPI, and the related alert all update → refresh retains the change.
+2. **Lead**: add a lead with litres/day and price → move its stage → reschedule its follow-up → dashboard active-lead/follow-up metrics and capacity calculations update → refresh retains the change.
+3. **Animal health**: open an animal with a vaccination due → record the vaccination → next check-up updates and the dashboard alert clears → refresh retains the change.
+4. **Milk production**: add a production record → daily totals, average yield, dashboard, and reports all update to the same number → refresh retains the record.
 
 ## Known scope cuts
 
-- No persistence — refreshing the page resets in-memory edits (see `PRODUCT_NOTES.md` for the reasoning).
-- The Reports period selector is decorative (always shows "This Week" data).
-- The Farm Assistant answers from the app's local mock data with simple keyword matching — it is not connected to a hosted LLM (this is a frontend-only, no-backend prototype).
+- The Farm Assistant answers from the app's local, deterministic shared state with keyword matching — it is not connected to a hosted LLM (this is a frontend-only, no-backend prototype), and its own copy says so.
+- "Available to Sell" and "Demand vs Capacity" are clearly labeled estimates based on a simple stated assumption (a flat 12% processing/household reserve), not a real forecasting model.
+- Reports' herd-productivity and lead-conversion figures use real counts/dates from the shared store, but individual animal yield records and herd-level milk log entries remain two independently-authored datasets — they are internally consistent, not perfectly reconciled animal-by-animal.

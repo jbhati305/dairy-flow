@@ -17,19 +17,24 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { formatCurrency, formatDate, isFollowUpOverdue, stageBadgeVariant } from "./utils";
+import { formatCurrency, formatDate, isFollowUpOverdue, stageBadgeVariant, trialBadgeVariant } from "./utils";
 
 interface LeadsTableProps {
   leads: Lead[];
   stages: LeadStage[];
   onOpenLead: (lead: Lead) => void;
   onMoveStage: (leadId: string, stage: LeadStage) => void;
+  onMarkContacted: (leadId: string) => void;
+  onRescheduleFollowUp: (leadId: string) => void;
 }
 
-export function LeadsTable({ leads, stages, onOpenLead, onMoveStage }: LeadsTableProps) {
+export function LeadsTable({ leads, stages, onOpenLead, onMoveStage, onMarkContacted, onRescheduleFollowUp }: LeadsTableProps) {
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
 
@@ -73,17 +78,16 @@ export function LeadsTable({ leads, stages, onOpenLead, onMoveStage }: LeadsTabl
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
-        <table className="w-full min-w-[960px] text-sm">
+        <table className="w-full min-w-[1080px] text-sm">
           <thead>
             <tr className="border-b border-neutral-200 bg-neutral-25 text-left text-xs text-neutral-500">
               <th className="px-4 py-3 font-medium">Business Name</th>
               <th className="px-4 py-3 font-medium">Buyer Type</th>
-              <th className="px-4 py-3 font-medium">Contact Person</th>
-              <th className="px-4 py-3 font-medium">Required Qty</th>
+              <th className="px-4 py-3 font-medium">Product</th>
+              <th className="px-4 py-3 font-medium">L/day</th>
               <th className="px-4 py-3 font-medium">Est. Monthly Value</th>
-              <th className="px-4 py-3 font-medium">Last Interaction</th>
+              <th className="px-4 py-3 font-medium">Trial</th>
               <th className="px-4 py-3 font-medium">Next Follow-up</th>
-              <th className="px-4 py-3 font-medium">Source</th>
               <th className="px-4 py-3 font-medium">Stage</th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
@@ -99,16 +103,15 @@ export function LeadsTable({ leads, stages, onOpenLead, onMoveStage }: LeadsTabl
                 >
                   <td className="px-4 py-3 font-medium text-neutral-900">{lead.businessName}</td>
                   <td className="px-4 py-3 text-neutral-600">{lead.buyerType}</td>
-                  <td className="px-4 py-3 text-neutral-600">{lead.contactPerson}</td>
-                  <td className="px-4 py-3 text-neutral-600">{lead.requiredQuantity} L/day</td>
-                  <td className="px-4 py-3 text-neutral-600">
-                    {formatCurrency(lead.estimatedMonthlyValue)}
+                  <td className="px-4 py-3 text-neutral-600">{lead.productType}</td>
+                  <td className="px-4 py-3 text-neutral-600">{lead.requiredQuantity}</td>
+                  <td className="px-4 py-3 text-neutral-600">{formatCurrency(lead.estimatedMonthlyValue)}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant={trialBadgeVariant[lead.trialOrderStatus]}>{lead.trialOrderStatus}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-neutral-600">{formatDate(lead.lastInteraction)}</td>
                   <td className={cn("px-4 py-3", overdue ? "font-medium text-red-600" : "text-neutral-600")}>
                     {formatDate(lead.nextFollowUp)}
                   </td>
-                  <td className="px-4 py-3 text-neutral-600">{lead.source}</td>
                   <td className="px-4 py-3">
                     <Badge variant={stageBadgeVariant[lead.stage]}>{lead.stage}</Badge>
                   </td>
@@ -116,21 +119,31 @@ export function LeadsTable({ leads, stages, onOpenLead, onMoveStage }: LeadsTabl
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm">
-                          Move
+                          Actions
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Move to...</DropdownMenuLabel>
+                        <DropdownMenuLabel>Quick actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        {stages.map((s) => (
-                          <DropdownMenuItem
-                            key={s}
-                            disabled={s === lead.stage}
-                            onClick={() => onMoveStage(lead.id, s)}
-                          >
-                            {s}
-                          </DropdownMenuItem>
-                        ))}
+                        <DropdownMenuItem onClick={() => onMarkContacted(lead.id)}>Mark contacted</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onRescheduleFollowUp(lead.id)}>Reschedule follow-up (+3d)</DropdownMenuItem>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Move to...</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {stages.map((s) => (
+                              <DropdownMenuItem key={s} disabled={s === lead.stage} onClick={() => onMoveStage(lead.id, s)}>
+                                {s}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem disabled={lead.stage === "Won"} onClick={() => onMoveStage(lead.id, "Won")}>
+                          Mark Won
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled={lead.stage === "Lost"} onClick={() => onMoveStage(lead.id, "Lost")}>
+                          Mark Lost
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </td>
@@ -139,7 +152,7 @@ export function LeadsTable({ leads, stages, onOpenLead, onMoveStage }: LeadsTabl
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-sm text-neutral-400">
+                <td colSpan={9} className="px-4 py-8 text-center text-sm text-neutral-400">
                   No leads match your search.
                 </td>
               </tr>

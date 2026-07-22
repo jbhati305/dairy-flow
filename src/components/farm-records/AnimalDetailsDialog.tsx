@@ -9,7 +9,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Pencil } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Pencil, Stethoscope, Syringe, Heart, Milk, ClipboardPlus, CheckCircle2 } from "lucide-react";
 import { HealthBadge, LactationBadge } from "./badges";
 import {
   ResponsiveContainer,
@@ -20,12 +21,17 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import type { Animal } from "@/types";
+import type { Animal, HealthEventType, Task } from "@/types";
+import { formatDate } from "@/lib/date";
 
 interface AnimalDetailsDialogProps {
   animal: Animal | null;
   onOpenChange: (open: boolean) => void;
   onEdit?: (animal: Animal) => void;
+  onQuickAction: (type: "health" | "vaccination" | "breeding" | "yield", animal: Animal) => void;
+  onCreateVetTask: (animal: Animal) => void;
+  linkedTasks: Task[];
+  onCompleteTask: (taskId: string) => void;
 }
 
 function InfoField({ label, value }: { label: string; value: string }) {
@@ -37,7 +43,24 @@ function InfoField({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function AnimalDetailsDialog({ animal, onOpenChange, onEdit }: AnimalDetailsDialogProps) {
+const eventTypeIcon: Record<HealthEventType, typeof Stethoscope> = {
+  Vaccination: Syringe,
+  "Veterinary Check": Stethoscope,
+  Treatment: ClipboardPlus,
+  Illness: Stethoscope,
+  Recovery: CheckCircle2,
+  "Breeding Event": Heart,
+};
+
+export function AnimalDetailsDialog({
+  animal,
+  onOpenChange,
+  onEdit,
+  onQuickAction,
+  onCreateVetTask,
+  linkedTasks,
+  onCompleteTask,
+}: AnimalDetailsDialogProps) {
   return (
     <Dialog open={!!animal} onOpenChange={(open) => !open && onOpenChange(false)}>
       <DialogContent className="max-w-2xl">
@@ -59,18 +82,36 @@ export function AnimalDetailsDialog({ animal, onOpenChange, onEdit }: AnimalDeta
                   </div>
                 </div>
                 {onEdit && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => onEdit(animal)}
-                    aria-label={`Edit details for ${animal.name}`}
-                  >
+                  <Button variant="secondary" size="sm" onClick={() => onEdit(animal)} aria-label={`Edit details for ${animal.name}`}>
                     <Pencil className="h-3.5 w-3.5" />
                     Edit
                   </Button>
                 )}
               </div>
             </DialogHeader>
+
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => onQuickAction("health", animal)}>
+                <Stethoscope className="h-3.5 w-3.5" />
+                Log health event
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => onQuickAction("vaccination", animal)}>
+                <Syringe className="h-3.5 w-3.5" />
+                Record vaccination
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => onQuickAction("breeding", animal)}>
+                <Heart className="h-3.5 w-3.5" />
+                Add breeding event
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => onQuickAction("yield", animal)}>
+                <Milk className="h-3.5 w-3.5" />
+                Record milk yield
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => onCreateVetTask(animal)}>
+                <ClipboardPlus className="h-3.5 w-3.5" />
+                Create veterinary task
+              </Button>
+            </div>
 
             <Tabs defaultValue="overview">
               <TabsList>
@@ -87,7 +128,7 @@ export function AnimalDetailsDialog({ animal, onOpenChange, onEdit }: AnimalDeta
                   <InfoField label="Age" value={`${animal.ageYears} yrs`} />
                   <InfoField label="Gender" value={animal.gender} />
                   <InfoField label="Current yield" value={`${animal.currentMilkYield} L/day`} />
-                  <InfoField label="Next check-up" value={animal.nextCheckup} />
+                  <InfoField label="Next check-up" value={formatDate(animal.nextCheckup)} />
                 </div>
                 <Separator />
                 <div className="flex flex-wrap items-center gap-2">
@@ -107,21 +148,52 @@ export function AnimalDetailsDialog({ animal, onOpenChange, onEdit }: AnimalDeta
                   <span className="text-xs text-neutral-500">Current status:</span>
                   <HealthBadge status={animal.healthStatus} />
                 </div>
+
+                {linkedTasks.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-neutral-700 mb-2">Open tasks for this animal</p>
+                    <ul className="flex flex-col gap-2">
+                      {linkedTasks.map((t) => (
+                        <li key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-neutral-200 p-3">
+                          <div>
+                            <p className="text-sm font-medium text-neutral-900">{t.title}</p>
+                            <p className="text-xs text-neutral-500">Due {formatDate(t.dueDate)}</p>
+                          </div>
+                          <Button size="sm" variant="secondary" onClick={() => onCompleteTask(t.id)}>
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Complete
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                    <Separator className="mt-3" />
+                  </div>
+                )}
+
                 <div>
-                  <p className="text-xs font-medium text-neutral-700 mb-2">Health history</p>
+                  <p className="text-xs font-medium text-neutral-700 mb-2">Health timeline</p>
                   {animal.healthHistory.length === 0 ? (
                     <p className="text-sm text-neutral-500">No health history recorded.</p>
                   ) : (
                     <ul className="flex flex-col gap-2">
-                      {animal.healthHistory.map((h, i) => (
-                        <li key={i} className="rounded-lg border border-neutral-200 p-3">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-neutral-900">{h.note}</p>
-                            <span className="text-xs text-neutral-400">{h.date}</span>
-                          </div>
-                          {h.vet && <p className="text-xs text-neutral-500 mt-1">Vet: {h.vet}</p>}
-                        </li>
-                      ))}
+                      {animal.healthHistory.map((h) => {
+                        const Icon = eventTypeIcon[h.type];
+                        return (
+                          <li key={h.id} className="flex gap-3 rounded-lg border border-neutral-200 p-3">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700">
+                              <Icon className="h-3.5 w-3.5" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <Badge variant="outline">{h.type}</Badge>
+                                <span className="text-xs text-neutral-400">{formatDate(h.date)}</span>
+                              </div>
+                              <p className="mt-1 text-sm font-medium text-neutral-900">{h.note}</p>
+                              {h.vet && <p className="mt-0.5 text-xs text-neutral-500">Vet: {h.vet}</p>}
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>
@@ -135,11 +207,9 @@ export function AnimalDetailsDialog({ animal, onOpenChange, onEdit }: AnimalDeta
                         <li key={i} className="rounded-lg border border-neutral-200 p-3">
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-neutral-900">{v.vaccine}</p>
-                            <span className="text-xs text-neutral-400">{v.date}</span>
+                            <span className="text-xs text-neutral-400">{formatDate(v.date)}</span>
                           </div>
-                          {v.nextDue && (
-                            <p className="text-xs text-neutral-500 mt-1">Next due: {v.nextDue}</p>
-                          )}
+                          {v.nextDue && <p className="text-xs text-neutral-500 mt-1">Next due: {formatDate(v.nextDue)}</p>}
                         </li>
                       ))}
                     </ul>
@@ -151,16 +221,13 @@ export function AnimalDetailsDialog({ animal, onOpenChange, onEdit }: AnimalDeta
                 <div className="grid grid-cols-2 gap-4">
                   <InfoField label="Calving count" value={String(animal.breedingInfo.calvingCount)} />
                   {animal.breedingInfo.lastCalvingDate && (
-                    <InfoField label="Last calving date" value={animal.breedingInfo.lastCalvingDate} />
+                    <InfoField label="Last calving date" value={formatDate(animal.breedingInfo.lastCalvingDate)} />
                   )}
                   {animal.breedingInfo.expectedCalvingDate && (
-                    <InfoField
-                      label="Expected calving date"
-                      value={animal.breedingInfo.expectedCalvingDate}
-                    />
+                    <InfoField label="Expected calving date" value={formatDate(animal.breedingInfo.expectedCalvingDate)} />
                   )}
                   {animal.breedingInfo.inseminationDate && (
-                    <InfoField label="Insemination date" value={animal.breedingInfo.inseminationDate} />
+                    <InfoField label="Insemination date" value={formatDate(animal.breedingInfo.inseminationDate)} />
                   )}
                 </div>
                 {!animal.breedingInfo.lastCalvingDate &&
@@ -185,13 +252,7 @@ export function AnimalDetailsDialog({ animal, onOpenChange, onEdit }: AnimalDeta
                             fontSize: 12,
                           }}
                         />
-                        <Line
-                          type="monotone"
-                          dataKey="litres"
-                          stroke="var(--color-brand-600)"
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                        />
+                        <Line type="monotone" dataKey="litres" stroke="var(--color-brand-600)" strokeWidth={2} dot={{ r: 3 }} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>

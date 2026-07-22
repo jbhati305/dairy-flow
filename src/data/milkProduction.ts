@@ -1,41 +1,81 @@
-import type { MilkProductionEntry, DailyMilkPoint } from "@/types";
+import type { MilkProductionEntry, QualityStatus, HerdGroup } from "@/types";
+import { HERD_GROUPS } from "@/types";
+import { TODAY, addDays } from "@/lib/date";
 
-export const weeklyMilkTrend: DailyMilkPoint[] = [
-  { day: "Mon", litres: 1198 },
-  { day: "Tue", litres: 1215 },
-  { day: "Wed", litres: 1174 },
-  { day: "Thu", litres: 1232 },
-  { day: "Fri", litres: 1189 },
-  { day: "Sat", litres: 1256 },
-  { day: "Sun", litres: 1246 },
-];
+// Deterministic pseudo-random hash in [0, 1) — same output every run, no Math.random().
+function hash(a: number, b: number): number {
+  const x = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
 
-export const milkProductionEntries: MilkProductionEntry[] = [
-  { id: "MP-2201", date: "2026-07-22", herdGroup: "Gir Herd", morningYield: 312, eveningYield: 268, fatPercent: 4.6, snfPercent: 8.7, quality: "Excellent", rejectedLitres: 0 },
-  { id: "MP-2202", date: "2026-07-22", herdGroup: "Holstein Friesian Herd", morningYield: 268, eveningYield: 231, fatPercent: 3.9, snfPercent: 8.5, quality: "Good", rejectedLitres: 0 },
-  { id: "MP-2203", date: "2026-07-22", herdGroup: "Sahiwal Herd", morningYield: 158, eveningYield: 134, fatPercent: 4.4, snfPercent: 8.6, quality: "Good", rejectedLitres: 2 },
-  { id: "MP-2204", date: "2026-07-22", herdGroup: "Murrah Buffalo Herd", morningYield: 112, eveningYield: 95, fatPercent: 6.8, snfPercent: 9.2, quality: "Excellent", rejectedLitres: 0 },
-  { id: "MP-2205", date: "2026-07-22", herdGroup: "Jersey Herd", morningYield: 98, eveningYield: 82, fatPercent: 5.1, snfPercent: 8.8, quality: "Good", rejectedLitres: 0 },
-  { id: "MP-2101", date: "2026-07-21", herdGroup: "Gir Herd", morningYield: 305, eveningYield: 263, fatPercent: 4.5, snfPercent: 8.6, quality: "Excellent", rejectedLitres: 0 },
-  { id: "MP-2102", date: "2026-07-21", herdGroup: "Holstein Friesian Herd", morningYield: 271, eveningYield: 235, fatPercent: 3.8, snfPercent: 8.4, quality: "Good", rejectedLitres: 4 },
-  { id: "MP-2103", date: "2026-07-21", herdGroup: "Sahiwal Herd", morningYield: 154, eveningYield: 130, fatPercent: 4.3, snfPercent: 8.5, quality: "Good", rejectedLitres: 0 },
-  { id: "MP-2104", date: "2026-07-21", herdGroup: "Murrah Buffalo Herd", morningYield: 108, eveningYield: 91, fatPercent: 6.7, snfPercent: 9.1, quality: "Excellent", rejectedLitres: 0 },
-  { id: "MP-2105", date: "2026-07-21", herdGroup: "Jersey Herd", morningYield: 95, eveningYield: 79, fatPercent: 5.0, snfPercent: 8.7, quality: "Acceptable", rejectedLitres: 3 },
-  { id: "MP-2001", date: "2026-07-20", herdGroup: "Gir Herd", morningYield: 298, eveningYield: 260, fatPercent: 4.5, snfPercent: 8.6, quality: "Excellent", rejectedLitres: 0 },
-  { id: "MP-2002", date: "2026-07-20", herdGroup: "Holstein Friesian Herd", morningYield: 275, eveningYield: 240, fatPercent: 3.9, snfPercent: 8.5, quality: "Good", rejectedLitres: 0 },
-  { id: "MP-2003", date: "2026-07-20", herdGroup: "Sahiwal Herd", morningYield: 150, eveningYield: 128, fatPercent: 4.4, snfPercent: 8.6, quality: "Good", rejectedLitres: 0 },
-  { id: "MP-2004", date: "2026-07-20", herdGroup: "Murrah Buffalo Herd", morningYield: 110, eveningYield: 93, fatPercent: 6.8, snfPercent: 9.2, quality: "Excellent", rejectedLitres: 0 },
-  { id: "MP-2005", date: "2026-07-20", herdGroup: "Jersey Herd", morningYield: 96, eveningYield: 80, fatPercent: 5.0, snfPercent: 8.8, quality: "Good", rejectedLitres: 0 },
-  { id: "MP-1901", date: "2026-07-19", herdGroup: "Gir Herd", morningYield: 302, eveningYield: 258, fatPercent: 4.4, snfPercent: 8.5, quality: "Good", rejectedLitres: 0 },
-  { id: "MP-1902", date: "2026-07-19", herdGroup: "Holstein Friesian Herd", morningYield: 260, eveningYield: 228, fatPercent: 3.8, snfPercent: 8.4, quality: "Good", rejectedLitres: 5 },
-  { id: "MP-1903", date: "2026-07-19", herdGroup: "Murrah Buffalo Herd", morningYield: 105, eveningYield: 90, fatPercent: 6.6, snfPercent: 9.0, quality: "Excellent", rejectedLitres: 0 },
-  { id: "MP-1801", date: "2026-07-18", herdGroup: "Gir Herd", morningYield: 295, eveningYield: 252, fatPercent: 4.5, snfPercent: 8.6, quality: "Excellent", rejectedLitres: 0 },
-  { id: "MP-1802", date: "2026-07-18", herdGroup: "Sahiwal Herd", morningYield: 148, eveningYield: 125, fatPercent: 4.3, snfPercent: 8.5, quality: "Acceptable", rejectedLitres: 6 },
-];
+interface HerdBaseline {
+  morning: number;
+  evening: number;
+  fat: number;
+  snf: number;
+}
 
-export const productionQualityMetrics = {
-  avgFat: 4.9,
-  avgSnf: 8.7,
-  rejectedToday: 2,
-  rejectedPercent: 0.16,
+// Today's (2026-07-22) exact figures — the anchor for all downstream KPIs.
+// Total today = 1758 L across 82 lactating animals ⇒ 21.4 L/animal average.
+const BASELINES: Record<HerdGroup, HerdBaseline> = {
+  "Gir Herd": { morning: 312, evening: 268, fat: 4.6, snf: 8.7 },
+  "Holstein Friesian Herd": { morning: 268, evening: 231, fat: 3.9, snf: 8.5 },
+  "Sahiwal Herd": { morning: 158, evening: 134, fat: 4.4, snf: 8.6 },
+  "Murrah Buffalo Herd": { morning: 112, evening: 95, fat: 6.8, snf: 9.2 },
+  "Jersey Herd": { morning: 98, evening: 82, fat: 5.1, snf: 8.8 },
 };
+
+function computeQuality(fatPercent: number, rejectedLitres: number): QualityStatus {
+  if (rejectedLitres > 3) return "Rejected";
+  if (fatPercent >= 4.5) return "Excellent";
+  if (fatPercent >= 4.0) return "Good";
+  return "Acceptable";
+}
+
+/**
+ * Generates `days` of history ending today (inclusive), for all herd groups.
+ * Day 0 (today) is exact; earlier days apply a deterministic seasonal wave plus
+ * a gentle long-term uptrend (the herd's yield has improved ~8% over 90 days),
+ * so "vs previous period" comparisons in Reports are meaningful, not random noise.
+ */
+function generateHistory(days: number): MilkProductionEntry[] {
+  const entries: MilkProductionEntry[] = [];
+
+  HERD_GROUPS.forEach((herd, herdIdx) => {
+    const base = BASELINES[herd];
+    for (let offset = 0; offset < days; offset++) {
+      const date = addDays(TODAY, -offset);
+      const dayIdx = offset;
+
+      // Long-term trend: production was ~8% lower 90 days ago than today.
+      const trend = 1 - 0.08 * (dayIdx / 90);
+      // Short-term wave + deterministic noise for a realistic week-to-week wiggle.
+      const wave = 1 + 0.035 * Math.sin(dayIdx / 3.1 + herdIdx) + (hash(dayIdx, herdIdx) - 0.5) * 0.03;
+      const factor = dayIdx === 0 ? 1 : trend * wave;
+
+      const morningYield = Math.round(base.morning * factor);
+      const eveningYield = Math.round(base.evening * factor);
+      const fatPercent = dayIdx === 0 ? base.fat : Math.round((base.fat + (hash(dayIdx, herdIdx + 10) - 0.5) * 0.4) * 10) / 10;
+      const snfPercent = dayIdx === 0 ? base.snf : Math.round((base.snf + (hash(dayIdx, herdIdx + 20) - 0.5) * 0.3) * 10) / 10;
+      const rejectedRoll = hash(dayIdx, herdIdx + 30);
+      const rejectedLitres = dayIdx === 0 ? 0 : rejectedRoll > 0.88 ? Math.round(rejectedRoll * 6) : 0;
+
+      entries.push({
+        id: `MP-${date.replace(/-/g, "")}-${herdIdx}`,
+        date,
+        herdGroup: herd,
+        morningYield,
+        eveningYield,
+        fatPercent,
+        snfPercent,
+        quality: computeQuality(fatPercent, rejectedLitres),
+        rejectedLitres,
+      });
+    }
+  });
+
+  return entries.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.herdGroup.localeCompare(b.herdGroup)));
+}
+
+// 90 days of history backs the Reports period selector (7 / 30 / 90 days).
+export const milkProductionEntries: MilkProductionEntry[] = generateHistory(90);

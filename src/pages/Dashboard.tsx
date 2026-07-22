@@ -1,44 +1,15 @@
 import { useNavigate } from "react-router-dom";
-import {
-  Beef,
-  Droplets,
-  Gauge,
-  PackageX,
-  Users,
-  AlertTriangle,
-  AlertCircle,
-  Info,
-  Milk,
-  Boxes,
-  UserPlus,
-  Syringe,
-  ClipboardList,
-  ArrowRight,
-} from "lucide-react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { Beef, Droplets, Gauge, PackageX, Users, Milk, Boxes, UserPlus, ClipboardList, Syringe, ArrowRight } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/shared/StatCard";
-import { AssistantPanel } from "@/components/dashboard/AssistantPanel";
-import { kpis, alerts, recentActivity } from "@/data/dashboard";
-import { weeklyMilkTrend } from "@/data/milkProduction";
-import { herdSummary } from "@/data/animals";
+import { TodaysPriorities } from "@/components/dashboard/TodaysPriorities";
+import { AvailableToSell } from "@/components/dashboard/AvailableToSell";
+import { AssistantWidget } from "@/components/dashboard/AssistantWidget";
+import { useAppData } from "@/store/AppDataContext";
+import { computeDashboardKpis, computeHerdSummary, computeWeeklyTrend } from "@/store/selectors";
 import { cn } from "@/lib/utils";
-
-const severityConfig = {
-  critical: { icon: AlertCircle, classes: "text-red-600 bg-red-50 border-red-100" },
-  warning: { icon: AlertTriangle, classes: "text-amber-600 bg-amber-50 border-amber-100" },
-  info: { icon: Info, classes: "text-blue-600 bg-blue-50 border-blue-100" },
-};
 
 const activityIcon = {
   milk: Milk,
@@ -46,15 +17,8 @@ const activityIcon = {
   lead: UserPlus,
   vaccination: Syringe,
   task: ClipboardList,
+  health: Syringe,
 };
-
-const herdGroups = [
-  { label: "Lactating", value: herdSummary.lactating, color: "bg-brand-600" },
-  { label: "Dry", value: herdSummary.dry, color: "bg-neutral-400" },
-  { label: "Pregnant", value: herdSummary.pregnant, color: "bg-blue-500" },
-  { label: "Calves", value: herdSummary.calves, color: "bg-amber-500" },
-  { label: "Under treatment", value: herdSummary.underTreatment, color: "bg-red-500" },
-];
 
 const quickActions = [
   { label: "Record milk production", icon: Milk, path: "/milk-production" },
@@ -74,13 +38,33 @@ function timeAgo(timestamp: string) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { state } = useAppData();
+
+  const kpis = computeDashboardKpis(state);
+  const herd = computeHerdSummary(state.animals);
+  const weeklyTrend = computeWeeklyTrend(state.milkEntries);
+  const weekChangePercent = (() => {
+    if (weeklyTrend.length < 2) return 0;
+    const first = weeklyTrend[0].litres;
+    const last = weeklyTrend[weeklyTrend.length - 1].litres;
+    return first > 0 ? Math.round(((last - first) / first) * 1000) / 10 : 0;
+  })();
+
+  const herdGroups = [
+    { label: "Lactating", value: herd.lactating, color: "bg-brand-600" },
+    { label: "Dry", value: herd.dry, color: "bg-neutral-400" },
+    { label: "Pregnant", value: herd.pregnant, color: "bg-blue-500" },
+    { label: "Calves", value: herd.calves, color: "bg-amber-500" },
+    { label: "Under treatment", value: herd.underTreatment, color: "bg-red-500" },
+  ];
+
+  const recentActivity = state.activity.slice(0, 6);
 
   return (
-    <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
-    <div className="flex min-w-0 flex-1 flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <div>
         <h2 className="text-lg font-semibold text-neutral-900">Good morning, Jitesh</h2>
-        <p className="text-sm text-neutral-500">Here's what's happening at Bhati Dairy Farm today.</p>
+        <p className="text-sm text-neutral-500">Here&apos;s what&apos;s happening at Bhati Dairy Farm today.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
@@ -92,21 +76,13 @@ export default function Dashboard() {
           icon={Droplets}
           tone="brand"
         />
-        <StatCard
-          label="Milk Produced Today"
-          value={`${kpis.milkToday.toLocaleString()} L`}
-          icon={Milk}
-          tone="brand"
-        />
+        <StatCard label="Milk Produced Today" value={`${kpis.milkToday.toLocaleString()} L`} icon={Milk} tone="brand" />
         <StatCard label="Avg. Yield / Animal" value={`${kpis.avgYield} L`} icon={Gauge} tone="brand" />
-        <StatCard
-          label="Low-Stock Items"
-          value={kpis.lowStockItems.toString()}
-          icon={PackageX}
-          tone="amber"
-        />
+        <StatCard label="Low-Stock Items" value={kpis.lowStockItems.toString()} icon={PackageX} tone="amber" />
         <StatCard label="Active Sales Leads" value={kpis.activeLeads.toString()} icon={Users} tone="brand" />
       </div>
+
+      <TodaysPriorities />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
@@ -115,12 +91,20 @@ export default function Dashboard() {
               <CardTitle>Milk Production — Last 7 Days</CardTitle>
               <CardDescription>Daily total across all herds, in litres</CardDescription>
             </div>
-            <Badge variant="brand">+4.0% vs last week</Badge>
+            <span
+              className={cn(
+                "rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                weekChangePercent >= 0 ? "border-brand-200 bg-brand-50 text-brand-700" : "border-red-100 bg-red-50 text-red-600"
+              )}
+            >
+              {weekChangePercent >= 0 ? "+" : ""}
+              {weekChangePercent}% vs last week
+            </span>
           </CardHeader>
           <CardContent>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weeklyMilkTrend} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                <AreaChart data={weeklyTrend} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                   <defs>
                     <linearGradient id="milkFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#3a8d58" stopOpacity={0.28} />
@@ -128,12 +112,7 @@ export default function Dashboard() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" vertical={false} />
-                  <XAxis
-                    dataKey="day"
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fill: "#7c7a73", fontSize: 12 }}
-                  />
+                  <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: "#7c7a73", fontSize: 12 }} />
                   <YAxis
                     tickLine={false}
                     axisLine={false}
@@ -142,21 +121,10 @@ export default function Dashboard() {
                     domain={["dataMin - 40", "dataMax + 40"]}
                   />
                   <Tooltip
-                    contentStyle={{
-                      borderRadius: 8,
-                      border: "1px solid #e2e1dc",
-                      fontSize: 12,
-                      boxShadow: "var(--shadow-panel)",
-                    }}
+                    contentStyle={{ borderRadius: 8, border: "1px solid #e2e1dc", fontSize: 12, boxShadow: "var(--shadow-panel)" }}
                     formatter={(value) => [`${Number(value).toLocaleString()} L`, "Production"]}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="litres"
-                    stroke="#205838"
-                    strokeWidth={2}
-                    fill="url(#milkFill)"
-                  />
+                  <Area type="monotone" dataKey="litres" stroke="#205838" strokeWidth={2} fill="url(#milkFill)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -166,7 +134,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Herd Overview</CardTitle>
-            <CardDescription>128 animals across statuses</CardDescription>
+            <CardDescription>{herd.total} animals across statuses</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {herdGroups.map((g) => (
@@ -176,20 +144,12 @@ export default function Dashboard() {
                   <span className="text-neutral-500">{g.value}</span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
-                  <div
-                    className={cn("h-full rounded-full", g.color)}
-                    style={{ width: `${(g.value / herdSummary.total) * 100}%` }}
-                  />
+                  <div className={cn("h-full rounded-full", g.color)} style={{ width: `${(g.value / herd.total) * 100}%` }} />
                 </div>
               </div>
             ))}
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-2 w-full"
-              onClick={() => navigate("/farm-records")}
-            >
-              View farm records
+            <Button variant="secondary" size="sm" className="mt-2 w-full" onClick={() => navigate("/farm-records")}>
+              View Herd & Health
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </CardContent>
@@ -197,55 +157,23 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle>Needs Attention</CardTitle>
-            <CardDescription>Alerts across health, inventory, and leads</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {alerts.map((a) => {
-              const cfg = severityConfig[a.severity];
-              const Icon = cfg.icon;
-              return (
-                <div
-                  key={a.id}
-                  className="flex items-start gap-3 rounded-lg border border-neutral-100 bg-neutral-25 p-3"
-                >
-                  <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full border", cfg.classes)}>
-                    <Icon className="h-3.5 w-3.5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-neutral-800">{a.message}</p>
-                    <p className="mt-0.5 text-xs text-neutral-400">
-                      {a.module} · {timeAgo(a.timestamp)}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
+        <AvailableToSell />
 
-        <Card>
+        <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
             <CardDescription>Latest updates across the farm</CardDescription>
           </CardHeader>
           <CardContent>
-            <ol className="space-y-4">
-              {recentActivity.map((item, idx) => {
+            <ol className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+              {recentActivity.map((item) => {
                 const Icon = activityIcon[item.type];
                 return (
-                  <li key={item.id} className="relative flex gap-3 pl-1">
-                    <div className="flex flex-col items-center">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700">
-                        <Icon className="h-3 w-3" />
-                      </span>
-                      {idx < recentActivity.length - 1 && (
-                        <span className="mt-1 w-px flex-1 bg-neutral-100" />
-                      )}
-                    </div>
-                    <div className="pb-1">
+                  <li key={item.id} className="flex gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700">
+                      <Icon className="h-3 w-3" />
+                    </span>
+                    <div className="min-w-0">
                       <p className="text-xs text-neutral-700 leading-snug">{item.message}</p>
                       <p className="mt-0.5 text-[11px] text-neutral-400">{timeAgo(item.timestamp)}</p>
                     </div>
@@ -276,11 +204,8 @@ export default function Dashboard() {
           ))}
         </CardContent>
       </Card>
-    </div>
 
-    <div className="w-full shrink-0 xl:w-[340px]">
-      <AssistantPanel />
-    </div>
+      <AssistantWidget />
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import type { InventoryItem } from "@/types";
+import type { InventoryItem, InventoryTransaction } from "@/types";
+import { TODAY, addDays } from "@/lib/date";
 
 export const inventoryItems: InventoryItem[] = [
   { id: "INV-001", name: "Concentrated Cattle Feed", category: "Cattle Feed", currentStock: 840, unit: "kg", minRequired: 500, supplier: "Krishna Agro Feeds", expiryDate: "2026-11-30", status: "In Stock" },
@@ -19,4 +20,47 @@ export const inventoryItems: InventoryItem[] = [
   { id: "INV-016", name: "Chaff Cutter Blades", category: "Dairy Equipment", currentStock: 1, unit: "units", minRequired: 2, supplier: "Steelcraft Dairy Equipment", expiryDate: null, status: "Low Stock" },
 ];
 
-export const lowStockCount = inventoryItems.filter((i) => i.status === "Low Stock").length;
+// Deterministic transaction history so "Inventory Consumption" reports have real
+// period-over-period variation without inventing random data on each load.
+function hash(a: number, b: number): number {
+  const x = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function seedTransactionsFor(item: InventoryItem, index: number): InventoryTransaction[] {
+  const out: InventoryTransaction[] = [];
+  const cadenceDays = item.category === "Cattle Feed" ? 4 : item.category === "Cleaning Supplies" ? 6 : 10;
+  const perEventQty = Math.max(1, Math.round(item.minRequired * 0.18));
+
+  for (let offset = 3; offset <= 88; offset += cadenceDays) {
+    const roll = hash(offset, index);
+    const date = addDays(TODAY, -offset);
+    if (roll > 0.82) {
+      out.push({
+        id: `TXN-${item.id}-${offset}`,
+        itemId: item.id,
+        type: "Stock In",
+        quantity: perEventQty * 3,
+        date,
+        supplier: item.supplier,
+        notes: "Scheduled restock delivery",
+      });
+    } else {
+      const type = roll > 0.94 ? "Wastage" : roll > 0.9 ? "Expired" : "Consumed";
+      out.push({
+        id: `TXN-${item.id}-${offset}`,
+        itemId: item.id,
+        type,
+        quantity: Math.max(1, Math.round(perEventQty * (0.4 + roll))),
+        date,
+        notes: type === "Consumed" ? "Routine daily use" : type === "Wastage" ? "Spillage / handling loss" : "Past expiry, discarded",
+      });
+    }
+  }
+
+  return out;
+}
+
+export const inventoryTransactions: InventoryTransaction[] = inventoryItems.flatMap((item, index) =>
+  seedTransactionsFor(item, index)
+);

@@ -1,12 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  Droplets,
-  Gauge,
-  Users,
-  IndianRupee,
-  PackageX,
-  TrendingUp,
-} from "lucide-react";
+import { Droplets, Gauge, Users, IndianRupee, PackageX, TrendingUp, Lightbulb } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -23,11 +16,21 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { StatCard } from "@/components/shared/StatCard";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { weeklyMilkTrend } from "@/data/milkProduction";
-import { allAnimals, herdSummary } from "@/data/animals";
-import { inventoryItems } from "@/data/inventory";
-import { leads, leadStages, totalPipelineValue } from "@/data/leads";
-import type { Breed, InventoryStatus, BuyerType } from "@/types";
+import { useAppData } from "@/store/AppDataContext";
+import {
+  computeAvgYieldPerAnimal,
+  computeBreedProductivity,
+  computeDailyTotals,
+  computeHerdSummary,
+  computeInventoryAttentionCount,
+  computeInventoryConsumption,
+  computeLeadConversion,
+  computeMilkToday,
+  computePipelineValue,
+  formatCurrencyCompact,
+} from "@/store/selectors";
+import { TODAY, addDays, formatDate } from "@/lib/date";
+import type { InventoryStatus } from "@/types";
 
 const tooltipStyle = {
   borderRadius: 8,
@@ -45,73 +48,86 @@ const statusColors: Record<InventoryStatus, string> = {
   "Expiring Soon": "#3172b6",
 };
 
-function formatInr(value: number) {
-  return `₹${(value / 1000).toFixed(0)}k`;
-}
+const PERIODS = [
+  { value: "7", label: "Last 7 Days" },
+  { value: "30", label: "Last 30 Days" },
+  { value: "90", label: "Last 90 Days" },
+];
 
 export default function Reports() {
-  const [period, setPeriod] = useState("week");
+  const { state } = useAppData();
+  const [period, setPeriod] = useState("7");
+  const days = Number(period);
 
-  const totalMilkThisWeek = useMemo(
-    () => weeklyMilkTrend.reduce((sum, d) => sum + d.litres, 0),
-    []
+  const fromDate = addDays(TODAY, -(days - 1));
+  const prevFromDate = addDays(TODAY, -(days * 2 - 1));
+  const prevToDate = addDays(fromDate, -1);
+
+  const herd = computeHerdSummary(state.animals);
+  const milkToday = computeMilkToday(state.milkEntries);
+  const avgYieldPerAnimal = computeAvgYieldPerAnimal(milkToday, herd.lactating);
+
+  const dailyTotals = useMemo(() => computeDailyTotals(state.milkEntries), [state.milkEntries]);
+  const periodTrend = useMemo(
+    () => dailyTotals.filter((d) => d.date >= fromDate && d.date <= TODAY),
+    [dailyTotals, fromDate]
   );
+  const totalMilkPeriod = periodTrend.reduce((sum, d) => sum + d.litres, 0);
+  const prevPeriodTotal = useMemo(
+    () => dailyTotals.filter((d) => d.date >= prevFromDate && d.date <= prevToDate).reduce((sum, d) => sum + d.litres, 0),
+    [dailyTotals, prevFromDate, prevToDate]
+  );
+  const periodChangePercent = prevPeriodTotal > 0 ? Math.round(((totalMilkPeriod - prevPeriodTotal) / prevPeriodTotal) * 1000) / 10 : 0;
 
-  const avgYieldPerAnimal = useMemo(() => {
-    const lactating = allAnimals.filter((a) => a.lactationStatus === "Lactating");
-    const total = lactating.reduce((sum, a) => sum + a.currentMilkYield, 0);
-    return lactating.length ? total / lactating.length : 0;
-  }, []);
+  const herdProductivityIndex = Math.round((herd.lactating / herd.total) * 100);
 
-  const herdProductivityIndex = Math.round((herdSummary.lactating / herdSummary.total) * 100);
+  const leadConversion = useMemo(() => computeLeadConversion(state.leads, fromDate, TODAY), [state.leads, fromDate]);
 
-  const wonLeads = leads.filter((l) => l.stage === "Won").length;
-  const lostLeads = leads.filter((l) => l.stage === "Lost").length;
-  const leadConversionRate = wonLeads + lostLeads > 0 ? Math.round((wonLeads / (wonLeads + lostLeads)) * 100) : 0;
+  const inventoryAttentionCount = computeInventoryAttentionCount(state.inventory);
 
-  const inventoryAttentionCount = inventoryItems.filter(
-    (i) => i.status === "Low Stock" || i.status === "Out of Stock" || i.status === "Expiring Soon"
-  ).length;
-
-  const breedProductivity = useMemo(() => {
-    const breeds: Breed[] = ["Gir", "Sahiwal", "Holstein Friesian", "Jersey", "Murrah Buffalo"];
-    return breeds.map((breed) => {
-      const lactating = allAnimals.filter((a) => a.breed === breed && a.lactationStatus === "Lactating");
-      const avg = lactating.length
-        ? lactating.reduce((sum, a) => sum + a.currentMilkYield, 0) / lactating.length
-        : 0;
-      return { breed, avgYield: Math.round(avg * 10) / 10, count: lactating.length };
-    });
-  }, []);
+  const breedProductivity = useMemo(
+    () => computeBreedProductivity(state.milkEntries, state.animals, fromDate, TODAY),
+    [state.milkEntries, state.animals, fromDate]
+  );
+  const topBreed = [...breedProductivity].sort((a, b) => b.avgYield - a.avgYield)[0];
 
   const inventoryByStatus = useMemo(() => {
     const statuses: InventoryStatus[] = ["In Stock", "Low Stock", "Out of Stock", "Expiring Soon"];
-    return statuses.map((status) => ({
-      status,
-      count: inventoryItems.filter((i) => i.status === status).length,
-    }));
-  }, []);
+    return statuses.map((status) => ({ status, count: state.inventory.filter((i) => i.status === status).length }));
+  }, [state.inventory]);
 
-  const leadFunnel = useMemo(
-    () =>
-      leadStages.map((stage) => ({
-        stage,
-        count: leads.filter((l) => l.stage === stage).length,
-      })),
-    []
+  const inventoryConsumption = useMemo(
+    () => computeInventoryConsumption(state.inventoryTransactions, state.inventory, fromDate, TODAY),
+    [state.inventoryTransactions, state.inventory, fromDate]
   );
+  const topConsumedCategory = [...inventoryConsumption].sort((a, b) => b.quantity - a.quantity)[0];
 
-  const pipelineByBuyerType = useMemo(() => {
-    const totals = new Map<BuyerType, number>();
-    leads
-      .filter((l) => l.stage !== "Lost")
-      .forEach((l) => {
-        totals.set(l.buyerType, (totals.get(l.buyerType) ?? 0) + l.estimatedMonthlyValue);
-      });
-    return Array.from(totals.entries())
-      .map(([buyerType, value]) => ({ buyerType, value }))
-      .sort((a, b) => b.value - a.value);
-  }, []);
+  const leadFunnelAll = useMemo(() => {
+    const stages = ["New Inquiry", "Contacted", "Visit Scheduled", "Proposal Sent", "Negotiation", "Won", "Lost"] as const;
+    return stages.map((stage) => ({ stage, count: state.leads.filter((l) => l.stage === stage).length }));
+  }, [state.leads]);
+
+  const totalPipelineValue = computePipelineValue(state.leads);
+
+  const overdueFollowUps = state.leads.filter(
+    (l) => l.stage !== "Won" && l.stage !== "Lost" && l.nextFollowUp && l.nextFollowUp < TODAY
+  ).length;
+
+  const insights = useMemo(() => {
+    const list: string[] = [];
+    if (prevPeriodTotal > 0) {
+      list.push(
+        `Milk production ${periodChangePercent >= 0 ? "increased" : "decreased"} ${Math.abs(periodChangePercent)}% compared with the previous ${days}-day period.`
+      );
+    } else {
+      list.push(`Not enough historical data yet to compare against the previous ${days}-day period.`);
+    }
+    if (topBreed) list.push(`${topBreed.breed} animals had the highest average yield (${topBreed.avgYield} L/day).`);
+    if (topConsumedCategory) list.push(`${topConsumedCategory.category} is being consumed fastest — ${topConsumedCategory.quantity} units used this period.`);
+    if (overdueFollowUps > 0) list.push(`${overdueFollowUps} sales follow-up${overdueFollowUps > 1 ? "s are" : " is"} overdue.`);
+    if (leadConversion.engagedCount > 0) list.push(`${leadConversion.rate}% of leads engaged this period converted to Won.`);
+    return list;
+  }, [periodChangePercent, prevPeriodTotal, days, topBreed, topConsumedCategory, overdueFollowUps, leadConversion]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -121,69 +137,58 @@ export default function Reports() {
           <p className="text-sm text-neutral-500">Farm-wide performance across production, herd, inventory, and sales.</p>
         </div>
         <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="week">This Week</SelectItem>
-            <SelectItem value="month">This Month</SelectItem>
+            {PERIODS.map((p) => (
+              <SelectItem key={p.value} value={p.value}>
+                {p.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        <StatCard
-          label="Total Milk (Week)"
-          value={`${totalMilkThisWeek.toLocaleString()} L`}
-          icon={Droplets}
-          tone="brand"
-        />
-        <StatCard
-          label="Avg. Yield / Animal"
-          value={`${avgYieldPerAnimal.toFixed(1)} L`}
-          icon={Gauge}
-          tone="brand"
-        />
-        <StatCard
-          label="Herd Productivity"
-          value={`${herdProductivityIndex}%`}
-          sublabel="Lactating share of herd"
-          icon={TrendingUp}
-          tone="brand"
-        />
+        <StatCard label={`Total Milk (${days}d)`} value={`${totalMilkPeriod.toLocaleString()} L`} icon={Droplets} tone="brand" />
+        <StatCard label="Avg. Yield / Animal" value={`${avgYieldPerAnimal} L`} sublabel="Today" icon={Gauge} tone="brand" />
+        <StatCard label="Herd Productivity" value={`${herdProductivityIndex}%`} sublabel="Lactating share of herd" icon={TrendingUp} tone="brand" />
         <StatCard
           label="Lead Conversion"
-          value={`${leadConversionRate}%`}
-          sublabel={`${wonLeads} won of ${wonLeads + lostLeads} closed`}
+          value={`${leadConversion.rate}%`}
+          sublabel={`${leadConversion.won} won of ${leadConversion.won + leadConversion.lost} closed`}
           icon={Users}
           tone="brand"
         />
-        <StatCard
-          label="Expected Monthly Value"
-          value={formatInr(totalPipelineValue)}
-          sublabel="Active pipeline"
-          icon={IndianRupee}
-          tone="brand"
-        />
-        <StatCard
-          label="Inventory Needs Attention"
-          value={inventoryAttentionCount.toString()}
-          sublabel="Low, out of stock, or expiring"
-          icon={PackageX}
-          tone="amber"
-        />
+        <StatCard label="Pipeline Value" value={formatCurrencyCompact(totalPipelineValue)} sublabel="Active pipeline" icon={IndianRupee} tone="brand" />
+        <StatCard label="Inventory Needs Attention" value={inventoryAttentionCount.toString()} sublabel="Low, out of stock, or expiring" icon={PackageX} tone="amber" />
       </div>
+
+      <Card>
+        <CardHeader className="flex-row items-center gap-2 space-y-0">
+          <Lightbulb className="h-4 w-4 text-amber-500" />
+          <CardTitle>Insights</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="list-disc space-y-1.5 pl-5 text-sm text-neutral-700">
+            {insights.map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Milk Production Trend</CardTitle>
-            <CardDescription>Daily total across all herds, in litres — {period === "week" ? "this week" : "this month"}</CardDescription>
+            <CardDescription>Daily total across all herds, in litres — last {days} days</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weeklyMilkTrend} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                <AreaChart data={periodTrend} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                   <defs>
                     <linearGradient id="reportsMilkFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#3a8d58" stopOpacity={0.28} />
@@ -191,16 +196,18 @@ export default function Reports() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" vertical={false} />
-                  <XAxis dataKey="day" tickLine={false} axisLine={false} tick={axisTick} />
-                  <YAxis
+                  <XAxis
+                    dataKey="date"
                     tickLine={false}
                     axisLine={false}
                     tick={axisTick}
-                    width={48}
-                    domain={["dataMin - 40", "dataMax + 40"]}
+                    tickFormatter={(d) => formatDate(d).slice(0, 6)}
+                    minTickGap={24}
                   />
+                  <YAxis tickLine={false} axisLine={false} tick={axisTick} width={48} domain={["dataMin - 40", "dataMax + 40"]} />
                   <Tooltip
                     contentStyle={tooltipStyle}
+                    labelFormatter={(d) => formatDate(String(d))}
                     formatter={(value) => [`${Number(value).toLocaleString()} L`, "Production"]}
                   />
                   <Area type="monotone" dataKey="litres" stroke="#205838" strokeWidth={2} fill="url(#reportsMilkFill)" />
@@ -213,7 +220,7 @@ export default function Reports() {
         <Card>
           <CardHeader>
             <CardTitle>Herd Productivity by Breed</CardTitle>
-            <CardDescription>Average daily yield per lactating animal, litres</CardDescription>
+            <CardDescription>Average daily yield per animal, litres — last {days} days</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64 w-full">
@@ -222,10 +229,7 @@ export default function Reports() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" vertical={false} />
                   <XAxis dataKey="breed" tickLine={false} axisLine={false} tick={axisTick} interval={0} angle={-15} textAnchor="end" height={50} />
                   <YAxis tickLine={false} axisLine={false} tick={axisTick} width={40} />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    formatter={(value) => [`${value} L/day`, "Avg. Yield"]}
-                  />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} L/day`, "Avg. Yield"]} />
                   <Bar dataKey="avgYield" fill="#205838" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -236,7 +240,7 @@ export default function Reports() {
         <Card>
           <CardHeader>
             <CardTitle>Inventory Stock Health</CardTitle>
-            <CardDescription>Number of items by stock status</CardDescription>
+            <CardDescription>Number of items by stock status (current)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64 w-full">
@@ -259,25 +263,18 @@ export default function Reports() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Sales Lead Conversion</CardTitle>
-            <CardDescription>Leads by pipeline stage, including closed outcomes</CardDescription>
+            <CardTitle>Inventory Consumption</CardTitle>
+            <CardDescription>Consumed + wastage + expired, by category — last {days} days</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={leadFunnel} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                <BarChart data={inventoryConsumption} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" vertical={false} />
-                  <XAxis dataKey="stage" tickLine={false} axisLine={false} tick={axisTick} interval={0} angle={-25} textAnchor="end" height={60} />
-                  <YAxis tickLine={false} axisLine={false} tick={axisTick} width={32} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} leads`, "Count"]} />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                    {leadFunnel.map((entry) => (
-                      <Cell
-                        key={entry.stage}
-                        fill={entry.stage === "Won" ? "#3a8d58" : entry.stage === "Lost" ? "#c0392b" : "#3172b6"}
-                      />
-                    ))}
-                  </Bar>
+                  <XAxis dataKey="category" tickLine={false} axisLine={false} tick={axisTick} interval={0} angle={-15} textAnchor="end" height={50} />
+                  <YAxis tickLine={false} axisLine={false} tick={axisTick} width={40} allowDecimals={false} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} units`, "Consumed"]} />
+                  <Bar dataKey="quantity" fill="#c8811a" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -286,22 +283,23 @@ export default function Reports() {
 
         <Card className="xl:col-span-2">
           <CardHeader>
-            <CardTitle>Expected Monthly Value by Buyer Type</CardTitle>
-            <CardDescription>Active pipeline value (excludes lost leads) — shows where sales effort pays off</CardDescription>
+            <CardTitle>Sales Lead Conversion</CardTitle>
+            <CardDescription>Current leads by pipeline stage, including closed outcomes</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={pipelineByBuyerType} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <BarChart data={leadFunnelAll} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" vertical={false} />
-                  <XAxis dataKey="buyerType" tickLine={false} axisLine={false} tick={axisTick} interval={0} angle={-15} textAnchor="end" height={50} />
-                  <YAxis tickLine={false} axisLine={false} tick={axisTick} width={56} tickFormatter={formatInr} />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    formatter={(value) => [`₹${Number(value).toLocaleString()}`, "Expected Monthly Value"]}
-                  />
+                  <XAxis dataKey="stage" tickLine={false} axisLine={false} tick={axisTick} interval={0} angle={-25} textAnchor="end" height={60} />
+                  <YAxis tickLine={false} axisLine={false} tick={axisTick} width={32} allowDecimals={false} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} leads`, "Count"]} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="value" name="Expected Monthly Value" fill="#c8811a" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" name="Leads" radius={[4, 4, 0, 0]}>
+                    {leadFunnelAll.map((entry) => (
+                      <Cell key={entry.stage} fill={entry.stage === "Won" ? "#3a8d58" : entry.stage === "Lost" ? "#c0392b" : "#3172b6"} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>

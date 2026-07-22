@@ -25,7 +25,15 @@ import { HealthBadge, LactationBadge } from "@/components/farm-records/badges";
 import { AddAnimalDialog } from "@/components/farm-records/AddAnimalDialog";
 import { EditAnimalDialog } from "@/components/farm-records/EditAnimalDialog";
 import { AnimalDetailsDialog } from "@/components/farm-records/AnimalDetailsDialog";
-import { allAnimals } from "@/data/animals";
+import {
+  LogHealthEventDialog,
+  RecordVaccinationDialog,
+  AddBreedingEventDialog,
+  RecordYieldDialog,
+} from "@/components/farm-records/QuickActionDialogs";
+import { useAppData } from "@/store/AppDataContext";
+import { useToast } from "@/components/ui/toast";
+import { TODAY, addDays } from "@/lib/date";
 import type { Animal, Breed, HealthStatus, LactationStatus } from "@/types";
 
 const breeds: Breed[] = ["Gir", "Sahiwal", "Holstein Friesian", "Jersey", "Murrah Buffalo"];
@@ -33,6 +41,7 @@ const lactationStatuses: LactationStatus[] = ["Lactating", "Dry", "Pregnant", "C
 const healthStatuses: HealthStatus[] = ["Healthy", "Under Observation", "Treatment Required"];
 
 type SortField = "id" | "name" | "age" | "yield" | "nextCheckup";
+type QuickActionType = "health" | "vaccination" | "breeding" | "yield";
 
 const sortOptions: { value: SortField; label: string }[] = [
   { value: "id", label: "Animal ID" },
@@ -47,7 +56,20 @@ const ALL_VALUE = "all";
 
 export default function FarmRecords() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [animals, setAnimals] = useState<Animal[]>(allAnimals);
+  const { toast } = useToast();
+  const {
+    state,
+    addAnimal,
+    updateAnimal,
+    addHealthEvent,
+    recordVaccination,
+    addBreedingEvent,
+    recordAnimalYield,
+    addTask,
+    updateTaskStatus,
+  } = useAppData();
+  const animals = state.animals;
+
   const [search, setSearch] = useState("");
   const [breedFilter, setBreedFilter] = useState<string>(ALL_VALUE);
   const [healthFilter, setHealthFilter] = useState<string>(ALL_VALUE);
@@ -55,17 +77,31 @@ export default function FarmRecords() {
   const [sortBy, setSortBy] = useState<SortField>("id");
   const [page, setPage] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
-  const [selectedAnimal, setSelectedAnimal] = useState<Animal | null>(null);
-  const [editingAnimal, setEditingAnimal] = useState<Animal | null>(null);
+  const [selectedAnimalId, setSelectedAnimalId] = useState<string | null>(null);
+  const [editingAnimalId, setEditingAnimalId] = useState<string | null>(null);
+  const [quickAction, setQuickAction] = useState<{ type: QuickActionType; animalId: string } | null>(null);
+
+  // Derive the currently-open animal from live state each render, rather than caching a
+  // snapshot, so edits made via quick-action dialogs are reflected immediately everywhere.
+  const selectedAnimal = animals.find((a) => a.id === selectedAnimalId) ?? null;
+  const editingAnimal = animals.find((a) => a.id === editingAnimalId) ?? null;
+  const quickActionAnimal = quickAction ? animals.find((a) => a.id === quickAction.animalId) ?? null : null;
 
   useEffect(() => {
-    if (searchParams.get("new") === "1") {
-      setAddOpen(true);
+    if (searchParams.get("new") === "1") setAddOpen(true);
+    const openId = searchParams.get("open");
+    if (openId) {
+      const animal = animals.find((a) => a.id === openId);
+      if (animal) setSelectedAnimalId(animal.id);
+    }
+    if (searchParams.get("new") || openId) {
       const next = new URLSearchParams(searchParams);
       next.delete("new");
+      next.delete("open");
       setSearchParams(next, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -113,28 +149,43 @@ export default function FarmRecords() {
   };
 
   const nextId = useMemo(() => {
-    const numericIds = animals
-      .map((a) => Number(a.id.replace("DF-", "")))
-      .filter((n) => !Number.isNaN(n));
+    const numericIds = animals.map((a) => Number(a.id.replace("DF-", ""))).filter((n) => !Number.isNaN(n));
     const max = numericIds.length > 0 ? Math.max(...numericIds) : 100;
     return `DF-${max + 1}`;
   }, [animals]);
 
   const handleAdd = (animal: Animal) => {
-    setAnimals((prev) => [animal, ...prev]);
+    addAnimal(animal);
     setPage(1);
   };
 
   const handleUpdate = (updated: Animal) => {
-    setAnimals((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-    setSelectedAnimal((prev) => (prev && prev.id === updated.id ? updated : prev));
+    updateAnimal(updated);
   };
+
+  const linkedTasks = selectedAnimal
+    ? state.tasks.filter((t) => t.linkedAnimalId === selectedAnimal.id && t.status !== "Completed")
+    : [];
+
+  function handleCreateVetTask(animal: Animal) {
+    addTask({
+      id: `TSK-${Date.now()}`,
+      title: `Veterinary review — ${animal.name}`,
+      category: "Veterinary Visit",
+      relatedRecord: `${animal.id} · ${animal.name}`,
+      dueDate: addDays(TODAY, 1),
+      priority: "High",
+      status: "Pending",
+      linkedAnimalId: animal.id,
+    });
+    toast({ title: "Task created", description: `Veterinary review scheduled for ${animal.name}.`, variant: "success" });
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-base font-semibold text-neutral-900">Farm Records</h1>
+          <h1 className="text-base font-semibold text-neutral-900">Herd & Health</h1>
           <p className="text-sm text-neutral-500">
             Manage cattle records, health history, and breeding information.
           </p>
@@ -272,10 +323,7 @@ export default function FarmRecords() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Avatar className="h-7 w-7">
-                          <AvatarFallback
-                            style={{ backgroundColor: animal.photoColor }}
-                            className="text-[10px] text-white"
-                          >
+                          <AvatarFallback style={{ backgroundColor: animal.photoColor }} className="text-[10px] text-white">
                             {animal.name.slice(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
@@ -287,9 +335,7 @@ export default function FarmRecords() {
                     <td className="px-4 py-3">
                       <LactationBadge status={animal.lactationStatus} />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-neutral-700">
-                      {animal.currentMilkYield} L/day
-                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-neutral-700">{animal.currentMilkYield} L/day</td>
                     <td className="px-4 py-3">
                       <HealthBadge status={animal.healthStatus} />
                     </td>
@@ -297,21 +343,11 @@ export default function FarmRecords() {
                     <td className="px-4 py-3 whitespace-nowrap text-neutral-700">{animal.nextCheckup}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedAnimal(animal)}
-                          aria-label={`View details for ${animal.name}`}
-                        >
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedAnimalId(animal.id)} aria-label={`View details for ${animal.name}`}>
                           <Eye className="h-4 w-4" />
                           View
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingAnimal(animal)}
-                          aria-label={`Edit details for ${animal.name}`}
-                        >
+                        <Button variant="ghost" size="sm" onClick={() => setEditingAnimalId(animal.id)} aria-label={`Edit details for ${animal.name}`}>
                           <Pencil className="h-4 w-4" />
                           Edit
                         </Button>
@@ -330,23 +366,11 @@ export default function FarmRecords() {
               Page {currentPage} of {totalPages}
             </p>
             <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                aria-label="Previous page"
-              >
+              <Button variant="secondary" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} aria-label="Previous page">
                 <ChevronLeft className="h-4 w-4" />
                 Prev
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                aria-label="Next page"
-              >
+              <Button variant="secondary" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} aria-label="Next page">
                 Next
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -358,16 +382,60 @@ export default function FarmRecords() {
       <AddAnimalDialog open={addOpen} onOpenChange={setAddOpen} onAdd={handleAdd} nextId={nextId} />
       <AnimalDetailsDialog
         animal={selectedAnimal}
-        onOpenChange={(open) => !open && setSelectedAnimal(null)}
+        onOpenChange={(open) => !open && setSelectedAnimalId(null)}
         onEdit={(animal) => {
-          setSelectedAnimal(null);
-          setEditingAnimal(animal);
+          setSelectedAnimalId(null);
+          setEditingAnimalId(animal.id);
+        }}
+        onQuickAction={(type, animal) => setQuickAction({ type, animalId: animal.id })}
+        onCreateVetTask={handleCreateVetTask}
+        linkedTasks={linkedTasks}
+        onCompleteTask={(taskId) => {
+          updateTaskStatus(taskId, "Completed");
+          toast({ title: "Task marked complete", variant: "success" });
         }}
       />
-      <EditAnimalDialog
-        animal={editingAnimal}
-        onOpenChange={(open) => !open && setEditingAnimal(null)}
-        onSave={handleUpdate}
+      <EditAnimalDialog animal={editingAnimal} onOpenChange={(open) => !open && setEditingAnimalId(null)} onSave={handleUpdate} />
+
+      <LogHealthEventDialog
+        animal={quickAction?.type === "health" ? quickActionAnimal : null}
+        onOpenChange={(open) => !open && setQuickAction(null)}
+        onSubmit={(args) => {
+          if (!quickActionAnimal) return;
+          addHealthEvent({ animalId: quickActionAnimal.id, ...args });
+          toast({ title: "Health event logged", description: `${args.eventType} recorded for ${quickActionAnimal.name}.`, variant: "success" });
+          setQuickAction(null);
+        }}
+      />
+      <RecordVaccinationDialog
+        animal={quickAction?.type === "vaccination" ? quickActionAnimal : null}
+        onOpenChange={(open) => !open && setQuickAction(null)}
+        onSubmit={(args) => {
+          if (!quickActionAnimal) return;
+          recordVaccination({ animalId: quickActionAnimal.id, ...args });
+          toast({ title: "Vaccination recorded", description: `${args.vaccine} for ${quickActionAnimal.name}.`, variant: "success" });
+          setQuickAction(null);
+        }}
+      />
+      <AddBreedingEventDialog
+        animal={quickAction?.type === "breeding" ? quickActionAnimal : null}
+        onOpenChange={(open) => !open && setQuickAction(null)}
+        onSubmit={(args) => {
+          if (!quickActionAnimal) return;
+          addBreedingEvent({ animalId: quickActionAnimal.id, ...args });
+          toast({ title: "Breeding event saved", description: `Updated for ${quickActionAnimal.name}.`, variant: "success" });
+          setQuickAction(null);
+        }}
+      />
+      <RecordYieldDialog
+        animal={quickAction?.type === "yield" ? quickActionAnimal : null}
+        onOpenChange={(open) => !open && setQuickAction(null)}
+        onSubmit={(args) => {
+          if (!quickActionAnimal) return;
+          recordAnimalYield({ animalId: quickActionAnimal.id, ...args });
+          toast({ title: "Yield recorded", description: `${args.litres} L for ${quickActionAnimal.name}.`, variant: "success" });
+          setQuickAction(null);
+        }}
       />
     </div>
   );

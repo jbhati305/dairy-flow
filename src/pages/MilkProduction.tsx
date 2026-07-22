@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Droplets, Sun, Moon, Milk, Gauge, Ban } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Droplets, Sun, Moon, Milk, Gauge, Ban, TrendingDown, TrendingUp } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -32,22 +32,11 @@ import {
 } from "@/components/ui/dialog";
 import { StatCard } from "@/components/shared/StatCard";
 import { useToast } from "@/components/ui/toast";
-import {
-  weeklyMilkTrend,
-  milkProductionEntries,
-  productionQualityMetrics,
-} from "@/data/milkProduction";
+import { useAppData } from "@/store/AppDataContext";
+import { computeAvgYieldPerAnimal, computeDailyTotals, computeHerdSummary, computeMilkToday, computeYieldDeclines } from "@/store/selectors";
+import { TODAY, addDays, formatDate } from "@/lib/date";
+import { HERD_GROUPS } from "@/types";
 import type { MilkProductionEntry, QualityStatus } from "@/types";
-
-const HERD_GROUPS = [
-  "Gir Herd",
-  "Holstein Friesian Herd",
-  "Sahiwal Herd",
-  "Murrah Buffalo Herd",
-  "Jersey Herd",
-];
-
-const LACTATING_ANIMALS = 82;
 
 const qualityBadgeVariant: Record<QualityStatus, "success" | "warning" | "danger"> = {
   Excellent: "success",
@@ -63,10 +52,6 @@ function computeQuality(fatPercent: number, rejectedLitres: number): QualityStat
   return "Acceptable";
 }
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 interface FormState {
   date: string;
   herdGroup: string;
@@ -79,7 +64,7 @@ interface FormState {
 
 function emptyForm(): FormState {
   return {
-    date: todayISO(),
+    date: TODAY,
     herdGroup: HERD_GROUPS[0],
     morningYield: "",
     eveningYield: "",
@@ -92,8 +77,9 @@ function emptyForm(): FormState {
 export default function MilkProduction() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { state, addMilkEntry } = useAppData();
 
-  const [entries, setEntries] = useState<MilkProductionEntry[]>(milkProductionEntries);
   const [search, setSearch] = useState("");
   const [herdFilter, setHerdFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -109,24 +95,41 @@ export default function MilkProduction() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const today = useMemo(() => {
-    return entries.reduce((max, e) => (e.date > max ? e.date : max), entries[0]?.date ?? todayISO());
-  }, [entries]);
+  const entries = state.milkEntries;
+  const herd = computeHerdSummary(state.animals);
+  const milkToday = computeMilkToday(entries);
+  const avgYield = computeAvgYieldPerAnimal(milkToday, herd.lactating);
 
-  const todaysEntries = useMemo(() => entries.filter((e) => e.date === today), [entries, today]);
+  const todaysEntries = useMemo(() => entries.filter((e) => e.date === TODAY), [entries]);
+  const yesterdaysEntries = useMemo(() => entries.filter((e) => e.date === addDays(TODAY, -1)), [entries]);
 
   const summary = useMemo(() => {
     const morning = todaysEntries.reduce((sum, e) => sum + e.morningYield, 0);
     const evening = todaysEntries.reduce((sum, e) => sum + e.eveningYield, 0);
     const rejected = todaysEntries.reduce((sum, e) => sum + e.rejectedLitres, 0);
-    const total = morning + evening;
-    const avgPerAnimal = total / LACTATING_ANIMALS;
-    return { morning, evening, total, rejected, avgPerAnimal };
+    const avgFat = todaysEntries.length ? todaysEntries.reduce((s, e) => s + e.fatPercent, 0) / todaysEntries.length : 0;
+    const avgSnf = todaysEntries.length ? todaysEntries.reduce((s, e) => s + e.snfPercent, 0) / todaysEntries.length : 0;
+    return { morning, evening, rejected, avgFat: Math.round(avgFat * 10) / 10, avgSnf: Math.round(avgSnf * 10) / 10 };
   }, [todaysEntries]);
+
+  const rejectedPercent = milkToday > 0 ? Math.round((summary.rejected / milkToday) * 1000) / 10 : 0;
+
+  const insight = useMemo(() => {
+    const yesterdayTotal = yesterdaysEntries.reduce((s, e) => s + e.morningYield + e.eveningYield, 0);
+    const changePercent = yesterdayTotal > 0 ? Math.round(((milkToday - yesterdayTotal) / yesterdayTotal) * 1000) / 10 : 0;
+
+    const best = [...todaysEntries].sort((a, b) => b.morningYield + b.eveningYield - (a.morningYield + a.eveningYield))[0];
+    const declines = computeYieldDeclines(state.animals);
+
+    return { changePercent, best, declines: declines.slice(0, 3) };
+  }, [todaysEntries, yesterdaysEntries, milkToday, state.animals]);
+
+  const dailyTotals = useMemo(() => computeDailyTotals(entries).slice(-14), [entries]);
 
   const filteredEntries = useMemo(() => {
     const q = search.trim().toLowerCase();
     return entries
+      .filter((e) => e.date > addDays(TODAY, -14))
       .filter((e) => (herdFilter === "all" ? true : e.herdGroup === herdFilter))
       .filter((e) => (q ? e.herdGroup.toLowerCase().includes(q) || e.date.includes(q) : true))
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
@@ -149,7 +152,6 @@ export default function MilkProduction() {
     const fatPercent = Number(form.fatPercent) || 0;
     const snfPercent = Number(form.snfPercent) || 0;
     const rejectedLitres = Number(form.rejectedLitres) || 0;
-
     const quality = computeQuality(fatPercent, rejectedLitres);
 
     const newEntry: MilkProductionEntry = {
@@ -164,7 +166,7 @@ export default function MilkProduction() {
       rejectedLitres,
     };
 
-    setEntries((prev) => [newEntry, ...prev]);
+    addMilkEntry(newEntry);
     toast({
       title: "Production recorded",
       description: `${form.herdGroup} — ${morningYield + eveningYield} L logged for ${form.date}.`,
@@ -178,9 +180,7 @@ export default function MilkProduction() {
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-lg font-semibold text-neutral-900">Milk Production</h2>
-          <p className="text-sm text-neutral-500">
-            Track daily yield, quality, and rejections across herds.
-          </p>
+          <p className="text-sm text-neutral-500">Track daily yield, quality, and rejections across herds.</p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>
           <Milk className="h-4 w-4" />
@@ -189,59 +189,25 @@ export default function MilkProduction() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        <StatCard
-          label="Morning Production"
-          value={`${summary.morning.toLocaleString()} L`}
-          icon={Sun}
-          tone="brand"
-        />
-        <StatCard
-          label="Evening Production"
-          value={`${summary.evening.toLocaleString()} L`}
-          icon={Moon}
-          tone="brand"
-        />
-        <StatCard
-          label="Total Production"
-          value={`${summary.total.toLocaleString()} L`}
-          sublabel="Today, all herds"
-          icon={Droplets}
-          tone="brand"
-        />
-        <StatCard
-          label="Avg Yield / Animal"
-          value={`${summary.avgPerAnimal.toFixed(1)} L`}
-          sublabel={`${LACTATING_ANIMALS} lactating animals`}
-          icon={Gauge}
-          tone="brand"
-        />
-        <StatCard
-          label="Rejected / Spoiled"
-          value={`${summary.rejected.toLocaleString()} L`}
-          sublabel={`${productionQualityMetrics.rejectedPercent}% of total`}
-          icon={Ban}
-          tone="red"
-        />
-        <StatCard
-          label="Avg Fat / SNF"
-          value={`${productionQualityMetrics.avgFat}% / ${productionQualityMetrics.avgSnf}%`}
-          sublabel="Herd-wide average"
-          icon={Gauge}
-          tone="amber"
-        />
+        <StatCard label="Morning Production" value={`${summary.morning.toLocaleString()} L`} icon={Sun} tone="brand" />
+        <StatCard label="Evening Production" value={`${summary.evening.toLocaleString()} L`} icon={Moon} tone="brand" />
+        <StatCard label="Total Production" value={`${milkToday.toLocaleString()} L`} sublabel="Today, all herds" icon={Droplets} tone="brand" />
+        <StatCard label="Avg Yield / Animal" value={`${avgYield} L`} sublabel={`${herd.lactating} lactating animals`} icon={Gauge} tone="brand" />
+        <StatCard label="Rejected / Spoiled" value={`${summary.rejected.toLocaleString()} L`} sublabel={`${rejectedPercent}% of total`} icon={Ban} tone="red" />
+        <StatCard label="Avg Fat / SNF" value={`${summary.avgFat}% / ${summary.avgSnf}%`} sublabel="Herd-wide average, today" icon={Gauge} tone="amber" />
       </div>
 
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div>
-            <CardTitle>Production Trend — Last 7 Days</CardTitle>
+            <CardTitle>Production Trend — Last 14 Days</CardTitle>
             <CardDescription>Daily total across all herds, in litres</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklyMilkTrend} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              <AreaChart data={dailyTotals} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                 <defs>
                   <linearGradient id="milkTrendFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#3a8d58" stopOpacity={0.28} />
@@ -250,36 +216,61 @@ export default function MilkProduction() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" vertical={false} />
                 <XAxis
-                  dataKey="day"
+                  dataKey="date"
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fill: "#7c7a73", fontSize: 12 }}
+                  tick={{ fill: "#7c7a73", fontSize: 11 }}
+                  tickFormatter={(d) => formatDate(d).slice(0, 6)}
                 />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: "#7c7a73", fontSize: 12 }}
-                  width={48}
-                  domain={["dataMin - 40", "dataMax + 40"]}
-                />
+                <YAxis tickLine={false} axisLine={false} tick={{ fill: "#7c7a73", fontSize: 12 }} width={48} domain={["dataMin - 40", "dataMax + 40"]} />
                 <Tooltip
-                  contentStyle={{
-                    borderRadius: 8,
-                    border: "1px solid #e2e1dc",
-                    fontSize: 12,
-                    boxShadow: "var(--shadow-panel)",
-                  }}
+                  contentStyle={{ borderRadius: 8, border: "1px solid #e2e1dc", fontSize: 12, boxShadow: "var(--shadow-panel)" }}
+                  labelFormatter={(d) => formatDate(String(d))}
                   formatter={(value) => [`${Number(value).toLocaleString()} L`, "Production"]}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="litres"
-                  stroke="#205838"
-                  strokeWidth={2}
-                  fill="url(#milkTrendFill)"
-                />
+                <Area type="monotone" dataKey="litres" stroke="#205838" strokeWidth={2} fill="url(#milkTrendFill)" />
               </AreaChart>
             </ResponsiveContainer>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 border-t border-neutral-100 pt-4 sm:grid-cols-3">
+            <div className="flex items-start gap-2">
+              {insight.changePercent >= 0 ? (
+                <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
+              ) : (
+                <TrendingDown className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+              )}
+              <p className="text-xs text-neutral-600">
+                <span className="font-medium text-neutral-900">
+                  {insight.changePercent >= 0 ? "+" : ""}
+                  {insight.changePercent}%
+                </span>{" "}
+                vs yesterday
+              </p>
+            </div>
+            {insight.best && (
+              <div className="flex items-start gap-2">
+                <Milk className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
+                <p className="text-xs text-neutral-600">
+                  Best today: <span className="font-medium text-neutral-900">{insight.best.herdGroup}</span> (
+                  {insight.best.morningYield + insight.best.eveningYield} L)
+                </p>
+              </div>
+            )}
+            {insight.declines.length > 0 ? (
+              <button onClick={() => navigate(`/farm-records?open=${insight.declines[0].animal.id}`)} className="flex items-start gap-2 text-left hover:underline">
+                <TrendingDown className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                <p className="text-xs text-neutral-600">
+                  <span className="font-medium text-neutral-900">{insight.declines.length} animal(s)</span> with a meaningful yield decline —
+                  view {insight.declines[0].animal.name}
+                </p>
+              </button>
+            ) : (
+              <div className="flex items-start gap-2">
+                <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
+                <p className="text-xs text-neutral-600">No animals with a meaningful yield decline this week.</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -288,15 +279,10 @@ export default function MilkProduction() {
         <CardHeader className="flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>Production Log</CardTitle>
-            <CardDescription>{filteredEntries.length} records</CardDescription>
+            <CardDescription>{filteredEntries.length} records — last 14 days</CardDescription>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Input
-              placeholder="Search herd or date..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="sm:w-56"
-            />
+            <Input placeholder="Search herd or date..." value={search} onChange={(e) => setSearch(e.target.value)} className="sm:w-56" />
             <Select value={herdFilter} onValueChange={setHerdFilter}>
               <SelectTrigger className="sm:w-56">
                 <SelectValue placeholder="All herd groups" />
@@ -329,29 +315,14 @@ export default function MilkProduction() {
               </thead>
               <tbody>
                 {filteredEntries.map((entry) => (
-                  <tr
-                    key={entry.id}
-                    className="border-b border-neutral-100 last:border-0 hover:bg-neutral-25"
-                  >
+                  <tr key={entry.id} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-25">
                     <td className="whitespace-nowrap py-2.5 pr-4 text-neutral-700">{entry.date}</td>
-                    <td className="whitespace-nowrap py-2.5 pr-4 font-medium text-neutral-800">
-                      {entry.herdGroup}
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 pr-4 text-neutral-700">
-                      {entry.morningYield}
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 pr-4 text-neutral-700">
-                      {entry.eveningYield}
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 pr-4 font-medium text-neutral-900">
-                      {entry.morningYield + entry.eveningYield}
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 pr-4 text-neutral-700">
-                      {entry.fatPercent.toFixed(1)}
-                    </td>
-                    <td className="whitespace-nowrap py-2.5 pr-4 text-neutral-700">
-                      {entry.snfPercent.toFixed(1)}
-                    </td>
+                    <td className="whitespace-nowrap py-2.5 pr-4 font-medium text-neutral-800">{entry.herdGroup}</td>
+                    <td className="whitespace-nowrap py-2.5 pr-4 text-neutral-700">{entry.morningYield}</td>
+                    <td className="whitespace-nowrap py-2.5 pr-4 text-neutral-700">{entry.eveningYield}</td>
+                    <td className="whitespace-nowrap py-2.5 pr-4 font-medium text-neutral-900">{entry.morningYield + entry.eveningYield}</td>
+                    <td className="whitespace-nowrap py-2.5 pr-4 text-neutral-700">{entry.fatPercent.toFixed(1)}</td>
+                    <td className="whitespace-nowrap py-2.5 pr-4 text-neutral-700">{entry.snfPercent.toFixed(1)}</td>
                     <td className="whitespace-nowrap py-2.5 pr-4">
                       <Badge variant={qualityBadgeVariant[entry.quality]}>{entry.quality}</Badge>
                     </td>
@@ -380,28 +351,17 @@ export default function MilkProduction() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Record Production</DialogTitle>
-            <DialogDescription>
-              Log morning and evening yield along with quality parameters.
-            </DialogDescription>
+            <DialogDescription>Log morning and evening yield along with quality parameters.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  required
-                  value={form.date}
-                  onChange={(e) => handleFormChange("date", e.target.value)}
-                />
+                <Input id="date" type="date" required value={form.date} onChange={(e) => handleFormChange("date", e.target.value)} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="herdGroup">Herd Group</Label>
-                <Select
-                  value={form.herdGroup}
-                  onValueChange={(v) => handleFormChange("herdGroup", v)}
-                >
+                <Select value={form.herdGroup} onValueChange={(v) => handleFormChange("herdGroup", v)}>
                   <SelectTrigger id="herdGroup">
                     <SelectValue />
                   </SelectTrigger>
@@ -420,65 +380,26 @@ export default function MilkProduction() {
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="morningYield">Morning Yield (L)</Label>
-                <Input
-                  id="morningYield"
-                  type="number"
-                  min={0}
-                  step="0.1"
-                  required
-                  value={form.morningYield}
-                  onChange={(e) => handleFormChange("morningYield", e.target.value)}
-                />
+                <Input id="morningYield" type="number" min={0} step="0.1" required value={form.morningYield} onChange={(e) => handleFormChange("morningYield", e.target.value)} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="eveningYield">Evening Yield (L)</Label>
-                <Input
-                  id="eveningYield"
-                  type="number"
-                  min={0}
-                  step="0.1"
-                  required
-                  value={form.eveningYield}
-                  onChange={(e) => handleFormChange("eveningYield", e.target.value)}
-                />
+                <Input id="eveningYield" type="number" min={0} step="0.1" required value={form.eveningYield} onChange={(e) => handleFormChange("eveningYield", e.target.value)} />
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="fatPercent">Fat %</Label>
-                <Input
-                  id="fatPercent"
-                  type="number"
-                  min={0}
-                  step="0.1"
-                  required
-                  value={form.fatPercent}
-                  onChange={(e) => handleFormChange("fatPercent", e.target.value)}
-                />
+                <Input id="fatPercent" type="number" min={0} step="0.1" required value={form.fatPercent} onChange={(e) => handleFormChange("fatPercent", e.target.value)} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="snfPercent">SNF %</Label>
-                <Input
-                  id="snfPercent"
-                  type="number"
-                  min={0}
-                  step="0.1"
-                  required
-                  value={form.snfPercent}
-                  onChange={(e) => handleFormChange("snfPercent", e.target.value)}
-                />
+                <Input id="snfPercent" type="number" min={0} step="0.1" required value={form.snfPercent} onChange={(e) => handleFormChange("snfPercent", e.target.value)} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="rejectedLitres">Rejected (L)</Label>
-                <Input
-                  id="rejectedLitres"
-                  type="number"
-                  min={0}
-                  step="0.1"
-                  value={form.rejectedLitres}
-                  onChange={(e) => handleFormChange("rejectedLitres", e.target.value)}
-                />
+                <Input id="rejectedLitres" type="number" min={0} step="0.1" value={form.rejectedLitres} onChange={(e) => handleFormChange("rejectedLitres", e.target.value)} />
               </div>
             </div>
 
