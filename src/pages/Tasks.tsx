@@ -42,7 +42,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/store/AppDataContext";
 import { computeOverdueTasks } from "@/store/selectors";
-import { TODAY, formatDate } from "@/lib/date";
+import { TODAY, formatDate, addDays } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import type { Task, TaskCategory, TaskPriority, TaskStatus } from "@/types";
 
@@ -152,6 +152,29 @@ export default function Tasks() {
       .filter((t) => !q || t.title.toLowerCase().includes(q) || t.relatedRecord.toLowerCase().includes(q))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }, [tasks, statusFilter, categoryFilter, search]);
+
+  const next7 = addDays(TODAY, 7);
+  const groups = useMemo(() => {
+    const overdue: Task[] = [];
+    const today: Task[] = [];
+    const upcoming: Task[] = [];
+    const later: Task[] = [];
+    const completed: Task[] = [];
+    for (const t of filteredTasks) {
+      if (t.status === "Completed") completed.push(t);
+      else if (t.dueDate < TODAY) overdue.push(t);
+      else if (t.dueDate === TODAY) today.push(t);
+      else if (t.dueDate <= next7) upcoming.push(t);
+      else later.push(t);
+    }
+    return [
+      { label: "Overdue", tasks: overdue },
+      { label: "Today", tasks: today },
+      { label: "Next 7 Days", tasks: upcoming },
+      { label: "Later", tasks: later },
+      { label: "Completed", tasks: completed },
+    ].filter((g) => g.tasks.length > 0);
+  }, [filteredTasks, next7]);
 
   function toggleComplete(task: Task) {
     const nextStatus: TaskStatus = task.status === "Completed" ? "Pending" : "Completed";
@@ -330,59 +353,77 @@ export default function Tasks() {
             </TabsList>
           </Tabs>
         </CardHeader>
-        <CardContent className="flex flex-col gap-2">
+        <CardContent className="flex flex-col gap-5">
           {filteredTasks.length === 0 && <p className="py-8 text-center text-sm text-neutral-500">No tasks match your filters.</p>}
-          {filteredTasks.map((task) => {
-            const Icon = categoryIcons[task.category];
-            const overdue = isOverdue(task);
-            const completed = task.status === "Completed";
-            return (
-              <div
-                key={task.id}
-                className={cn(
-                  "flex flex-col gap-3 rounded-lg border border-neutral-100 p-3 transition-colors sm:flex-row sm:items-center sm:gap-4",
-                  completed ? "bg-neutral-25" : "bg-white hover:border-neutral-200"
-                )}
-              >
-                <div className="flex items-center gap-3 sm:pt-0">
-                  <Checkbox
-                    checked={completed}
-                    onCheckedChange={() => toggleComplete(task)}
-                    aria-label={completed ? "Mark as pending" : "Mark as complete"}
-                  />
-                  <span
-                    className={cn(
-                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-                      completed ? "bg-neutral-100 text-neutral-400" : "bg-brand-50 text-brand-700"
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={cn("text-sm font-medium", completed ? "text-neutral-400 line-through" : "text-neutral-900")}>
-                    {task.title}
-                  </p>
-                  <p className="mt-0.5 text-xs text-neutral-500">
-                    {task.category} · {task.relatedRecord}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <span
-                    className={cn(
-                      "flex items-center gap-1 text-xs font-medium",
-                      overdue ? "text-red-600" : completed ? "text-neutral-400" : "text-neutral-600"
-                    )}
-                  >
-                    {overdue && <AlertTriangle className="h-3.5 w-3.5" />}
-                    {formatDate(task.dueDate)}
-                  </span>
-                  <Badge variant={priorityBadge[task.priority]}>{task.priority}</Badge>
-                  <Badge variant={statusBadge[task.status]}>{task.status}</Badge>
-                </div>
+          {groups.map((group) => (
+            <div key={group.label}>
+              <div className="mb-1.5 flex items-center gap-2">
+                <p
+                  className={cn(
+                    "text-xs font-semibold uppercase tracking-wide",
+                    group.label === "Overdue" ? "text-red-600" : "text-neutral-400"
+                  )}
+                >
+                  {group.label}
+                </p>
+                <span className="text-xs text-neutral-400">({group.tasks.length})</span>
               </div>
-            );
-          })}
+              <div className="divide-y divide-neutral-100 rounded-lg border border-neutral-100">
+                {group.tasks.map((task) => {
+                  const Icon = categoryIcons[task.category];
+                  const overdue = isOverdue(task);
+                  const completed = task.status === "Completed";
+                  return (
+                    <div
+                      key={task.id}
+                      className={cn(
+                        "flex flex-col gap-2.5 p-3 transition-colors sm:flex-row sm:items-center sm:gap-4",
+                        completed ? "bg-neutral-25" : "bg-white hover:bg-neutral-50"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={completed}
+                          onCheckedChange={() => toggleComplete(task)}
+                          className="h-5 w-5"
+                          aria-label={completed ? "Mark as pending" : "Mark as complete"}
+                        />
+                        <span
+                          className={cn(
+                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                            completed ? "bg-neutral-100 text-neutral-400" : "bg-brand-50 text-brand-700"
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={cn("text-sm font-medium", completed ? "text-neutral-400 line-through" : "text-neutral-900")}>
+                          {task.title}
+                        </p>
+                        <p className="mt-0.5 text-xs text-neutral-500">
+                          {task.category} · {task.relatedRecord}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <span
+                          className={cn(
+                            "flex items-center gap-1 text-xs font-medium",
+                            overdue ? "text-red-600" : completed ? "text-neutral-400" : "text-neutral-600"
+                          )}
+                        >
+                          {overdue && <AlertTriangle className="h-3.5 w-3.5" />}
+                          {formatDate(task.dueDate)}
+                        </span>
+                        <Badge variant={priorityBadge[task.priority]}>{task.priority}</Badge>
+                        {statusFilter !== "All" ? null : <Badge variant={statusBadge[task.status]}>{task.status}</Badge>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
     </div>

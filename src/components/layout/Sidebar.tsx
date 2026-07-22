@@ -52,21 +52,21 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               onClick={onClose}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive
-                    ? "bg-brand-50 text-brand-800"
+                    ? "bg-brand-700 text-white shadow-sm"
                     : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
                 )
               }
             >
               <item.icon className="h-4 w-4 shrink-0" strokeWidth={2} />
-              {item.label}
+              <span className="truncate">{item.label}</span>
             </NavLink>
           ))}
         </nav>
 
         <div className="border-t border-neutral-200 p-4">
-          <div className="flex items-center gap-3 rounded-lg bg-neutral-50 p-3">
+          <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
             <Avatar className="h-9 w-9">
               <AvatarFallback>JB</AvatarFallback>
             </Avatar>

@@ -1,10 +1,5 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -23,6 +18,7 @@ import {
 } from "recharts";
 import type { Animal, HealthEventType, Task } from "@/types";
 import { formatDate } from "@/lib/date";
+import { cn } from "@/lib/utils";
 
 interface AnimalDetailsDialogProps {
   animal: Animal | null;
@@ -62,34 +58,47 @@ export function AnimalDetailsDialog({
   onCompleteTask,
 }: AnimalDetailsDialogProps) {
   return (
-    <Dialog open={!!animal} onOpenChange={(open) => !open && onOpenChange(false)}>
-      <DialogContent className="max-w-2xl">
+    <DialogPrimitive.Root open={!!animal} onOpenChange={(open) => !open && onOpenChange(false)}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-neutral-950/30 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Content
+          className={cn(
+            "fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-xl flex-col border-l border-neutral-200 bg-white shadow-[var(--shadow-panel)] focus:outline-none",
+            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right"
+          )}
+        >
         {animal && (
           <>
-            <DialogHeader>
-              <div className="flex items-center justify-between gap-3 pr-6">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-11 w-11">
+            <div className="flex items-center justify-between gap-3 border-b border-neutral-100 px-5 py-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Avatar className="h-11 w-11 shrink-0">
                     <AvatarFallback style={{ backgroundColor: animal.photoColor }} className="text-white">
                       {animal.name.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
-                    <DialogTitle>
-                      {animal.name} <span className="text-neutral-400 font-normal">· {animal.id}</span>
-                    </DialogTitle>
-                    <DialogDescription>{animal.breed}</DialogDescription>
+                  <div className="min-w-0">
+                    <DialogPrimitive.Title className="truncate text-base font-semibold text-neutral-900">
+                      {animal.name} <span className="font-normal text-neutral-400">· {animal.id}</span>
+                    </DialogPrimitive.Title>
+                    <p className="text-sm text-neutral-500">{animal.breed}</p>
                   </div>
                 </div>
-                {onEdit && (
-                  <Button variant="secondary" size="sm" onClick={() => onEdit(animal)} aria-label={`Edit details for ${animal.name}`}>
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit
-                  </Button>
-                )}
-              </div>
-            </DialogHeader>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {onEdit && (
+                    <Button variant="secondary" size="sm" onClick={() => onEdit(animal)} aria-label={`Edit details for ${animal.name}`}>
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                  )}
+                  <DialogPrimitive.Close asChild>
+                    <button className="rounded-md p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Close">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </DialogPrimitive.Close>
+                </div>
+            </div>
 
+            <div className="flex flex-1 flex-col gap-4 overflow-y-auto scrollbar-thin px-5 py-4">
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => onQuickAction("health", animal)}>
                 <Stethoscope className="h-3.5 w-3.5" />
@@ -261,9 +270,11 @@ export function AnimalDetailsDialog({
                 )}
               </TabsContent>
             </Tabs>
+            </div>
           </>
         )}
-      </DialogContent>
-    </Dialog>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

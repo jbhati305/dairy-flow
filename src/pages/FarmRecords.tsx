@@ -9,6 +9,9 @@ import {
   Pencil,
   Beef,
   FilterX,
+  SlidersHorizontal,
+  MoreHorizontal,
+  X,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +24,13 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { HealthBadge, LactationBadge } from "@/components/farm-records/badges";
 import { AddAnimalDialog } from "@/components/farm-records/AddAnimalDialog";
 import { EditAnimalDialog } from "@/components/farm-records/EditAnimalDialog";
@@ -33,7 +43,7 @@ import {
 } from "@/components/farm-records/QuickActionDialogs";
 import { useAppData } from "@/store/AppDataContext";
 import { useToast } from "@/components/ui/toast";
-import { TODAY, addDays } from "@/lib/date";
+import { TODAY, addDays, formatDate } from "@/lib/date";
 import type { Animal, Breed, HealthStatus, LactationStatus } from "@/types";
 
 const breeds: Breed[] = ["Gir", "Sahiwal", "Holstein Friesian", "Jersey", "Murrah Buffalo"];
@@ -213,36 +223,8 @@ export default function FarmRecords() {
               />
             </div>
 
-            <Select value={breedFilter} onValueChange={handleFilterChange(setBreedFilter)}>
-              <SelectTrigger className="w-[160px]" aria-label="Filter by breed">
-                <SelectValue placeholder="Breed" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_VALUE}>All breeds</SelectItem>
-                {breeds.map((b) => (
-                  <SelectItem key={b} value={b}>
-                    {b}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={healthFilter} onValueChange={handleFilterChange(setHealthFilter)}>
-              <SelectTrigger className="w-[180px]" aria-label="Filter by health status">
-                <SelectValue placeholder="Health status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_VALUE}>All health statuses</SelectItem>
-                {healthStatuses.map((h) => (
-                  <SelectItem key={h} value={h}>
-                    {h}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             <Select value={lactationFilter} onValueChange={handleFilterChange(setLactationFilter)}>
-              <SelectTrigger className="w-[170px]" aria-label="Filter by lactation status">
+              <SelectTrigger className="w-[200px]" aria-label="Filter by lactation status">
                 <SelectValue placeholder="Lactation status" />
               </SelectTrigger>
               <SelectContent>
@@ -255,26 +237,100 @@ export default function FarmRecords() {
               </SelectContent>
             </Select>
 
-            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortField)}>
-              <SelectTrigger className="w-[170px]" aria-label="Sort animals">
-                <SelectValue placeholder="Sort by" />
+            <Select value={healthFilter} onValueChange={handleFilterChange(setHealthFilter)}>
+              <SelectTrigger className="w-[190px]" aria-label="Filter by health status">
+                <SelectValue placeholder="Health status" />
               </SelectTrigger>
               <SelectContent>
-                {sortOptions.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    Sort by {s.label}
+                <SelectItem value={ALL_VALUE}>All health statuses</SelectItem>
+                {healthStatuses.map((h) => (
+                  <SelectItem key={h} value={h}>
+                    {h}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  More Filters
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-64">
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-neutral-700">Breed</label>
+                    <Select value={breedFilter} onValueChange={handleFilterChange(setBreedFilter)}>
+                      <SelectTrigger aria-label="Filter by breed">
+                        <SelectValue placeholder="Breed" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL_VALUE}>All breeds</SelectItem>
+                        {breeds.map((b) => (
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-neutral-700">Sort by</label>
+                    <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortField)}>
+                      <SelectTrigger aria-label="Sort animals">
+                        <SelectValue placeholder="Sort by" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sortOptions.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>
+                            {s.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
             {(search || breedFilter !== ALL_VALUE || healthFilter !== ALL_VALUE || lactationFilter !== ALL_VALUE) && (
               <Button variant="ghost" size="sm" onClick={resetFilters}>
                 <FilterX className="h-4 w-4" />
-                Clear filters
+                Clear all
               </Button>
             )}
           </div>
+
+          {(breedFilter !== ALL_VALUE || healthFilter !== ALL_VALUE || lactationFilter !== ALL_VALUE) && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {breedFilter !== ALL_VALUE && (
+                <span className="flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800">
+                  {breedFilter}
+                  <button onClick={() => handleFilterChange(setBreedFilter)(ALL_VALUE)} aria-label="Remove breed filter">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {healthFilter !== ALL_VALUE && (
+                <span className="flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800">
+                  {healthFilter}
+                  <button onClick={() => handleFilterChange(setHealthFilter)(ALL_VALUE)} aria-label="Remove health filter">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {lactationFilter !== ALL_VALUE && (
+                <span className="flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800">
+                  {lactationFilter}
+                  <button onClick={() => handleFilterChange(setLactationFilter)(ALL_VALUE)} aria-label="Remove lactation filter">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
 
           <p className="text-xs text-neutral-500">
             Showing {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–
@@ -300,57 +356,80 @@ export default function FarmRecords() {
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-neutral-200 bg-neutral-50 text-left text-xs font-medium text-neutral-500">
-                  <th className="px-4 py-3">Animal ID</th>
-                  <th className="px-4 py-3">Name</th>
+          <div className="max-h-[640px] overflow-auto">
+            <table className="w-full min-w-[820px] border-collapse text-sm">
+              <thead className="sticky top-0 z-10 bg-neutral-50">
+                <tr className="border-b border-neutral-200 text-left text-xs font-medium text-neutral-500">
+                  <th className="px-4 py-3">Animal</th>
                   <th className="px-4 py-3">Breed</th>
-                  <th className="px-4 py-3">Age</th>
-                  <th className="px-4 py-3">Lactation status</th>
-                  <th className="px-4 py-3">Current yield</th>
-                  <th className="px-4 py-3">Health status</th>
-                  <th className="px-4 py-3">Last vaccination</th>
-                  <th className="px-4 py-3">Next check-up</th>
+                  <th className="px-4 py-3">Lifecycle status</th>
+                  <th className="px-4 py-3">Milk today</th>
+                  <th className="px-4 py-3">Health</th>
+                  <th className="px-4 py-3">Next action</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pageItems.map((animal) => (
-                  <tr key={animal.id} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50">
-                    <td className="px-4 py-3 font-medium text-neutral-900 whitespace-nowrap">{animal.id}</td>
+                  <tr
+                    key={animal.id}
+                    tabIndex={0}
+                    onClick={() => setSelectedAnimalId(animal.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setSelectedAnimalId(animal.id);
+                    }}
+                    aria-label={`View details for ${animal.name}`}
+                    className="cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50 focus-visible:outline-none focus-visible:bg-brand-50/60 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-brand-400"
+                  >
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-7 w-7">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar className="h-8 w-8 shrink-0">
                           <AvatarFallback style={{ backgroundColor: animal.photoColor }} className="text-[10px] text-white">
                             {animal.name.slice(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-neutral-900">{animal.name}</span>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-neutral-900">{animal.name}</p>
+                          <p className="text-xs text-neutral-400">{animal.id} · {animal.ageYears} yrs</p>
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-neutral-700">{animal.breed}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-neutral-700">{animal.ageYears} yrs</td>
                     <td className="px-4 py-3">
                       <LactationBadge status={animal.lactationStatus} />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-neutral-700">{animal.currentMilkYield} L/day</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-neutral-700">{animal.currentMilkYield} L</td>
                     <td className="px-4 py-3">
                       <HealthBadge status={animal.healthStatus} />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-neutral-700">{animal.lastVaccination}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-neutral-700">{animal.nextCheckup}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 whitespace-nowrap text-neutral-700">{formatDate(animal.nextCheckup)}</td>
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => setSelectedAnimalId(animal.id)} aria-label={`View details for ${animal.name}`}>
                           <Eye className="h-4 w-4" />
-                          View
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setEditingAnimalId(animal.id)} aria-label={`Edit details for ${animal.name}`}>
-                          <Pencil className="h-4 w-4" />
-                          Edit
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
+                              aria-label={`More actions for ${animal.name}`}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => setEditingAnimalId(animal.id)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                              Edit details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setQuickAction({ type: "health", animalId: animal.id })}>
+                              Log health event
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setQuickAction({ type: "vaccination", animalId: animal.id })}>
+                              Record vaccination
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                   </tr>

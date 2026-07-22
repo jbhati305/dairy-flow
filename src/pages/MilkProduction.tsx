@@ -35,6 +35,7 @@ import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/store/AppDataContext";
 import { computeAvgYieldPerAnimal, computeDailyTotals, computeHerdSummary, computeMilkToday, computeYieldDeclines } from "@/store/selectors";
 import { TODAY, addDays, formatDate } from "@/lib/date";
+import { cn } from "@/lib/utils";
 import { HERD_GROUPS } from "@/types";
 import type { MilkProductionEntry, QualityStatus } from "@/types";
 
@@ -188,14 +189,61 @@ export default function MilkProduction() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Morning Production" value={`${summary.morning.toLocaleString()} L`} icon={Sun} tone="brand" />
         <StatCard label="Evening Production" value={`${summary.evening.toLocaleString()} L`} icon={Moon} tone="brand" />
         <StatCard label="Total Production" value={`${milkToday.toLocaleString()} L`} sublabel="Today, all herds" icon={Droplets} tone="brand" />
         <StatCard label="Avg Yield / Animal" value={`${avgYield} L`} sublabel={`${herd.lactating} lactating animals`} icon={Gauge} tone="brand" />
-        <StatCard label="Rejected / Spoiled" value={`${summary.rejected.toLocaleString()} L`} sublabel={`${rejectedPercent}% of total`} icon={Ban} tone="red" />
-        <StatCard label="Avg Fat / SNF" value={`${summary.avgFat}% / ${summary.avgSnf}%`} sublabel="Herd-wide average, today" icon={Gauge} tone="amber" />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Quality — Today</CardTitle>
+          <CardDescription>Fat, SNF, and rejected milk across all herds</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="flex items-center gap-3 rounded-lg border border-neutral-100 p-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+              <Gauge className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-xs text-neutral-500">Fat %</p>
+              <p className="text-lg font-semibold text-neutral-900">{summary.avgFat}%</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 rounded-lg border border-neutral-100 p-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+              <Gauge className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-xs text-neutral-500">SNF %</p>
+              <p className="text-lg font-semibold text-neutral-900">{summary.avgSnf}%</p>
+            </div>
+          </div>
+          <div
+            className={cn(
+              "flex items-center gap-3 rounded-lg border p-3",
+              summary.rejected > 0 ? "border-red-100 bg-red-50/40" : "border-neutral-100"
+            )}
+          >
+            <span
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                summary.rejected > 0 ? "bg-red-50 text-red-600" : "bg-brand-50 text-brand-700"
+              )}
+            >
+              <Ban className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-xs text-neutral-500">Rejected / spoiled</p>
+              <p className={cn("text-lg font-semibold", summary.rejected > 0 ? "text-red-700" : "text-neutral-900")}>
+                {summary.rejected.toLocaleString()} L
+                {milkToday > 0 && <span className="ml-1 text-xs font-normal text-neutral-500">({rejectedPercent}%)</span>}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -261,8 +309,10 @@ export default function MilkProduction() {
               <button onClick={() => navigate(`/farm-records?open=${insight.declines[0].animal.id}`)} className="flex items-start gap-2 text-left hover:underline">
                 <TrendingDown className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
                 <p className="text-xs text-neutral-600">
-                  <span className="font-medium text-neutral-900">{insight.declines.length} animal(s)</span> with a meaningful yield decline —
-                  view {insight.declines[0].animal.name}
+                  <span className="font-medium text-neutral-900">
+                    {insight.declines.length} {insight.declines.length === 1 ? "animal" : "animals"}
+                  </span>{" "}
+                  with a meaningful yield decline — view {insight.declines[0].animal.name}
                 </p>
               </button>
             ) : (

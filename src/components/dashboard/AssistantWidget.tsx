@@ -187,11 +187,11 @@ export function AssistantWidget() {
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Trigger asChild>
         <button
-          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-brand-700 px-4 py-3 text-sm font-medium text-white shadow-[var(--shadow-panel)] transition-transform hover:bg-brand-800 hover:scale-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
-          aria-label="Open Farm Assistant"
+          className="group fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-brand-700 text-white shadow-[var(--shadow-panel)] transition-transform hover:bg-brand-800 hover:scale-[1.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+          aria-label="Ask DairyFlow — open Farm Assistant"
+          title="Ask DairyFlow"
         >
-          <Sparkles className="h-4 w-4" />
-          <span className="hidden sm:inline">Ask DairyFlow</span>
+          <Sparkles className="h-5 w-5" />
         </button>
       </DialogPrimitive.Trigger>
 
@@ -199,7 +199,7 @@ export function AssistantWidget() {
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-neutral-950/30 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
           className={cn(
-            "fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-sm flex-col border-l border-neutral-200 bg-white shadow-[var(--shadow-panel)]",
+            "fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-md flex-col border-l border-neutral-200 bg-white shadow-[var(--shadow-panel)]",
             "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right"
           )}
         >
@@ -254,17 +254,19 @@ export function AssistantWidget() {
             )}
 
             {messages.length <= 1 && (
-              <div className="flex flex-col gap-1.5 pt-1">
+              <div className="flex flex-col gap-2 pt-1">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-400">Suggested questions</p>
-                {SUGGESTED_QUESTIONS.map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => handleAsk(q)}
-                    className="rounded-lg border border-neutral-200 px-3 py-2 text-left text-xs text-neutral-700 hover:border-brand-300 hover:bg-brand-50/40"
-                  >
-                    {q}
-                  </button>
-                ))}
+                <div className="flex flex-wrap gap-1.5">
+                  {SUGGESTED_QUESTIONS.map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => handleAsk(q)}
+                      className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-left text-xs text-neutral-700 hover:border-brand-300 hover:bg-brand-50/40"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>

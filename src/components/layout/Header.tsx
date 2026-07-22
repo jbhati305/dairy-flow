@@ -77,11 +77,11 @@ export function Header({ onMenuClick }: HeaderProps) {
         <Menu className="h-5 w-5" />
       </button>
 
-      <h1 className="text-base font-semibold text-neutral-900 whitespace-nowrap">{title}</h1>
+      <h1 className="text-base font-semibold text-neutral-900 whitespace-nowrap lg:hidden">{title}</h1>
 
       <button
         onClick={() => setSearchOpen(true)}
-        className="relative ml-2 hidden max-w-sm flex-1 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-left text-sm text-neutral-400 shadow-sm hover:border-neutral-400 md:flex"
+        className="relative ml-2 hidden max-w-md flex-1 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-left text-sm text-neutral-400 shadow-sm hover:border-neutral-400 lg:flex"
       >
         <Search className="h-4 w-4 shrink-0" />
         <span className="flex-1">Search animals, inventory, leads, tasks...</span>
@@ -90,10 +90,10 @@ export function Header({ onMenuClick }: HeaderProps) {
         </kbd>
       </button>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-1.5">
         <button
           onClick={() => setSearchOpen(true)}
-          className="rounded-md p-2 text-neutral-500 hover:bg-neutral-100 md:hidden"
+          className="rounded-md p-2 text-neutral-500 hover:bg-neutral-100 lg:hidden"
           aria-label="Search"
         >
           <Search className="h-4.5 w-4.5" />
@@ -132,9 +132,9 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm" className="gap-1.5">
+            <Button variant="secondary" size="sm" className="gap-1.5">
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Record</span>
+              <span className="hidden sm:inline">Quick add</span>
               <ChevronDown className="h-3.5 w-3.5 opacity-70" />
             </Button>
           </DropdownMenuTrigger>

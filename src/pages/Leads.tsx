@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { LayoutGrid, Table2, Users, Wallet, CalendarClock, Droplets, AlertTriangle, Plus } from "lucide-react";
+import { LayoutGrid, Table2, Users, Wallet, Droplets, AlertTriangle, Plus, Gauge, CheckCircle2 } from "lucide-react";
 import type { Lead, LeadStage } from "@/types";
 import { leadStages } from "@/data/leads";
-import { StatCard } from "@/components/shared/StatCard";
+import { StatCard, MetricStrip } from "@/components/shared/StatCard";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
@@ -22,6 +23,7 @@ import {
   formatCurrencyCompact,
 } from "@/store/selectors";
 import { TODAY, addDays } from "@/lib/date";
+import { cn } from "@/lib/utils";
 
 export default function Leads() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -100,37 +102,75 @@ export default function Leads() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Active Leads" value={activeLeadsCount.toString()} icon={Users} tone="brand" />
         <StatCard label="Pipeline Value" value={`${formatCurrencyCompact(totalPipelineValue)}/mo`} icon={Wallet} tone="brand" />
-        <StatCard label="Required L/day" value={requiredLitresPerDay.toString()} icon={Droplets} tone="brand" />
+        <StatCard label="Available Surplus" value={`${capacity.availableToSell} L`} sublabel="Per day, estimate" icon={Droplets} tone="brand" />
         <StatCard
-          label="Follow-ups Due"
-          value={followUpsDue.toString()}
-          icon={CalendarClock}
-          tone={followUpsDue > 0 ? "amber" : "neutral"}
-        />
-        <StatCard label="Available Surplus" value={`${capacity.availableToSell} L`} icon={Droplets} tone="brand" />
-        <StatCard
-          label="Demand vs Capacity"
-          value={capacity.capacityGap > 0 ? `+${capacity.capacityGap} L short` : "Within capacity"}
+          label="Capacity Gap"
+          value={capacity.capacityGap > 0 ? `${capacity.capacityGap} L short` : "None"}
+          sublabel={capacity.capacityGap > 0 ? "Advanced-stage demand exceeds surplus" : "Within capacity"}
           icon={AlertTriangle}
           tone={capacity.capacityGap > 0 ? "red" : "neutral"}
         />
       </div>
 
-      {capacity.capacityGap > 0 && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+      <MetricStrip
+        items={[
+          { label: "L/day required across pipeline", value: requiredLitresPerDay.toString() },
+          { label: "follow-ups due", value: followUpsDue.toString(), tone: followUpsDue > 0 ? "amber" : "neutral" },
+        ]}
+      />
+
+      <Card className="p-4">
+        <div className="flex items-center gap-2">
+          <Gauge className="h-4 w-4 text-neutral-500" />
+          <p className="text-sm font-semibold text-neutral-900">Supply vs. demand</p>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <p className="text-sm font-medium text-amber-800">Advanced-stage demand exceeds estimated surplus</p>
-            <p className="mt-0.5 text-xs text-amber-700">
-              Leads in Proposal Sent / Negotiation want {capacity.advancedStageDemand} L/day, but only {capacity.availableToSell} L/day is
-              estimated as available today. Consider phasing new contracts or growing supply before closing all of them.
+            <p className="text-xs text-neutral-500">Available surplus</p>
+            <p className="mt-0.5 text-base font-semibold text-neutral-900">{capacity.availableToSell} L/day</p>
+          </div>
+          <div>
+            <p className="text-xs text-neutral-500">Advanced-stage demand</p>
+            <p className="mt-0.5 text-base font-semibold text-neutral-900">{capacity.advancedStageDemand} L/day</p>
+          </div>
+          <div>
+            <p className="text-xs text-neutral-500">% of capacity used</p>
+            <p className="mt-0.5 text-base font-semibold text-neutral-900">
+              {capacity.availableToSell > 0 ? Math.round((capacity.advancedStageDemand / capacity.availableToSell) * 100) : capacity.advancedStageDemand > 0 ? 100 : 0}%
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-neutral-500">{capacity.capacityGap > 0 ? "Shortfall" : "Remaining capacity"}</p>
+            <p className={cn("mt-0.5 text-base font-semibold", capacity.capacityGap > 0 ? "text-red-600" : "text-brand-700")}>
+              {capacity.capacityGap > 0 ? `${capacity.capacityGap} L` : `${capacity.availableToSell - capacity.advancedStageDemand} L`}
             </p>
           </div>
         </div>
-      )}
+        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
+          <div
+            className={cn("h-full rounded-full", capacity.capacityGap > 0 ? "bg-red-500" : "bg-brand-600")}
+            style={{ width: `${capacity.availableToSell > 0 ? Math.min(100, Math.round((capacity.advancedStageDemand / capacity.availableToSell) * 100)) : capacity.advancedStageDemand > 0 ? 100 : 0}%` }}
+          />
+        </div>
+        <div className="mt-3 flex items-start gap-2 border-t border-neutral-100 pt-3">
+          {capacity.capacityGap > 0 ? (
+            <>
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <p className="text-xs text-amber-800">
+                Phase new contracts or grow supply before closing all advanced-stage leads — demand currently exceeds today&apos;s estimated surplus.
+              </p>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
+              <p className="text-xs text-neutral-600">Advanced-stage demand is comfortably within today&apos;s estimated surplus.</p>
+            </>
+          )}
+        </div>
+      </Card>
 
       <Tabs value={view} onValueChange={(v) => setView(v as "board" | "table")}>
         <TabsList>

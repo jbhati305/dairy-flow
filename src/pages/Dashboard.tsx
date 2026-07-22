@@ -1,9 +1,9 @@
 import { useNavigate } from "react-router-dom";
-import { Beef, Droplets, Gauge, PackageX, Users, Milk, Boxes, UserPlus, ClipboardList, Syringe, ArrowRight } from "lucide-react";
+import { Beef, Gauge, Users, Milk, Boxes, UserPlus, ClipboardList, Syringe, ArrowRight } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { StatCard } from "@/components/shared/StatCard";
+import { StatCard, MetricStrip } from "@/components/shared/StatCard";
 import { TodaysPriorities } from "@/components/dashboard/TodaysPriorities";
 import { AvailableToSell } from "@/components/dashboard/AvailableToSell";
 import { AssistantWidget } from "@/components/dashboard/AssistantWidget";
@@ -67,25 +67,29 @@ export default function Dashboard() {
         <p className="text-sm text-neutral-500">Here&apos;s what&apos;s happening at Bhati Dairy Farm today.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        <StatCard label="Total Cattle" value={kpis.totalCattle.toString()} icon={Beef} tone="brand" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
-          label="Lactating Cattle"
-          value={kpis.lactatingCattle.toString()}
-          sublabel={`${Math.round((kpis.lactatingCattle / kpis.totalCattle) * 100)}% of herd`}
-          icon={Droplets}
+          label="Herd Size"
+          value={kpis.totalCattle.toString()}
+          sublabel={`${kpis.lactatingCattle} lactating (${Math.round((kpis.lactatingCattle / kpis.totalCattle) * 100)}%)`}
+          icon={Beef}
           tone="brand"
         />
         <StatCard label="Milk Produced Today" value={`${kpis.milkToday.toLocaleString()} L`} icon={Milk} tone="brand" />
         <StatCard label="Avg. Yield / Animal" value={`${kpis.avgYield} L`} icon={Gauge} tone="brand" />
-        <StatCard label="Low-Stock Items" value={kpis.lowStockItems.toString()} icon={PackageX} tone="amber" />
         <StatCard label="Active Sales Leads" value={kpis.activeLeads.toString()} icon={Users} tone="brand" />
       </div>
 
-      <TodaysPriorities />
+      <MetricStrip
+        items={[
+          { label: "low-stock items", value: kpis.lowStockItems.toString(), tone: kpis.lowStockItems > 0 ? "amber" : "neutral" },
+          { label: "week-over-week production", value: `${weekChangePercent >= 0 ? "+" : ""}${weekChangePercent}%`, tone: weekChangePercent >= 0 ? "brand" : "red" },
+          { label: "herd on record", value: `${herd.total} animals` },
+        ]}
+      />
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+        <Card className="xl:col-span-3">
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div>
               <CardTitle>Milk Production — Last 7 Days</CardTitle>
@@ -128,55 +132,54 @@ export default function Dashboard() {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 border-t border-neutral-100 pt-4 sm:grid-cols-2">
+              {herdGroups.slice(0, 4).map((g) => (
+                <div key={g.label}>
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <span className="font-medium text-neutral-700">{g.label}</span>
+                    <span className="text-neutral-500">{g.value}</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
+                    <div className={cn("h-full rounded-full", g.color)} style={{ width: `${(g.value / herd.total) * 100}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Herd Overview</CardTitle>
-            <CardDescription>{herd.total} animals across statuses</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {herdGroups.map((g) => (
-              <div key={g.label}>
-                <div className="mb-1 flex items-center justify-between text-xs">
-                  <span className="font-medium text-neutral-700">{g.label}</span>
-                  <span className="text-neutral-500">{g.value}</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
-                  <div className={cn("h-full rounded-full", g.color)} style={{ width: `${(g.value / herd.total) * 100}%` }} />
-                </div>
-              </div>
-            ))}
-            <Button variant="secondary" size="sm" className="mt-2 w-full" onClick={() => navigate("/farm-records")}>
-              View Herd & Health
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="xl:col-span-2">
+          <TodaysPriorities />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <AvailableToSell />
 
         <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest updates across the farm</CardDescription>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle>Recent Activity</CardTitle>
+              <CardDescription>Latest updates across the farm</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/farm-records")}>
+              View Herd & Health
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
           </CardHeader>
           <CardContent>
-            <ol className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+            <ol className="divide-y divide-neutral-100">
               {recentActivity.map((item) => {
                 const Icon = activityIcon[item.type];
                 return (
-                  <li key={item.id} className="flex gap-3">
+                  <li key={item.id} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700">
                       <Icon className="h-3 w-3" />
                     </span>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs text-neutral-700 leading-snug">{item.message}</p>
-                      <p className="mt-0.5 text-[11px] text-neutral-400">{timeAgo(item.timestamp)}</p>
                     </div>
+                    <p className="shrink-0 text-[11px] text-neutral-400">{timeAgo(item.timestamp)}</p>
                   </li>
                 );
               })}
@@ -185,25 +188,23 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">Quick actions</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {quickActions.map((action) => (
             <button
               key={action.label}
               onClick={() => navigate(`${action.path}?new=1`)}
-              className="flex flex-col items-start gap-3 rounded-lg border border-neutral-200 p-4 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/40"
+              className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white p-3.5 text-left shadow-[var(--shadow-card)] transition-colors hover:border-brand-300 hover:bg-brand-50/40"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
                 <action.icon className="h-4 w-4" />
               </span>
               <span className="text-sm font-medium text-neutral-800">{action.label}</span>
             </button>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <AssistantWidget />
     </div>

@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertTriangle, Boxes, PackageX, CalendarClock, Search, Plus, SlidersHorizontal, Eye } from "lucide-react";
+import { AlertTriangle, Boxes, PackageX, CalendarClock, Search, Plus, SlidersHorizontal, Eye, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +33,7 @@ import { ItemDetailsDialog } from "@/components/inventory/ItemDetailsDialog";
 import { useAppData } from "@/store/AppDataContext";
 import { computeInventoryStatus } from "@/store/selectors";
 import { daysUntil, formatDate, TODAY } from "@/lib/date";
+import { cn } from "@/lib/utils";
 import type { InventoryCategory, InventoryItem, InventoryStatus } from "@/types";
 
 const categories: InventoryCategory[] = [
@@ -70,6 +77,7 @@ export default function Inventory() {
   const [form, setForm] = useState(emptyForm);
   const [viewItem, setViewItem] = useState<InventoryItem | null>(null);
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
+  const [attentionOnly, setAttentionOnly] = useState(false);
 
   useEffect(() => {
     if (searchParams.get("new") === "1") setAddOpen(true);
@@ -109,9 +117,10 @@ export default function Inventory() {
         !q || item.name.toLowerCase().includes(q) || item.supplier.toLowerCase().includes(q);
       const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
       const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-      return matchesSearch && matchesCategory && matchesStatus;
+      const matchesAttention = !attentionOnly || item.status === "Low Stock" || item.status === "Out of Stock" || item.status === "Expiring Soon";
+      return matchesSearch && matchesCategory && matchesStatus && matchesAttention;
     });
-  }, [items, search, categoryFilter, statusFilter]);
+  }, [items, search, categoryFilter, statusFilter, attentionOnly]);
 
   const resetForm = () => setForm(emptyForm);
 
@@ -167,7 +176,13 @@ export default function Inventory() {
   return (
     <div className="flex flex-col gap-6">
       {attentionItems.length > 0 && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <button
+          onClick={() => setAttentionOnly((v) => !v)}
+          className={cn(
+            "flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors",
+            attentionOnly ? "border-amber-300 bg-amber-100" : "border-amber-200 bg-amber-50 hover:bg-amber-100/70"
+          )}
+        >
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
           <div>
             <p className="text-sm font-medium text-amber-800">
@@ -176,13 +191,13 @@ export default function Inventory() {
             <p className="text-xs text-amber-700 mt-0.5">
               {counts.out > 0 && `${counts.out} out of stock`}
               {counts.out > 0 && counts.low > 0 && ", "}
-              {counts.low > 0 && `${counts.low} running low`}. Restock soon to avoid disruptions.
+              {counts.low > 0 && `${counts.low} running low`}. {attentionOnly ? "Showing filtered list — click to clear." : "Click to filter the list below."}
             </p>
           </div>
-        </div>
+        </button>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total Items" value={String(counts.total)} icon={Boxes} tone="brand" />
         <StatCard label="Low Stock" value={String(counts.low)} icon={AlertTriangle} tone="amber" />
         <StatCard label="Out of Stock" value={String(counts.out)} icon={PackageX} tone="red" />
@@ -235,31 +250,45 @@ export default function Inventory() {
         </div>
 
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left text-sm">
+          <table className="w-full min-w-[880px] text-left text-sm">
             <thead>
               <tr className="border-b border-neutral-200 text-xs text-neutral-500">
                 <th className="py-2 pr-4 font-medium">Item</th>
-                <th className="py-2 pr-4 font-medium">Category</th>
-                <th className="py-2 pr-4 font-medium">Current Stock</th>
-                <th className="py-2 pr-4 font-medium">Min. Required</th>
+                <th className="py-2 pr-4 font-medium">Stock level</th>
                 <th className="py-2 pr-4 font-medium">Expiry</th>
                 <th className="py-2 pr-4 font-medium">Status</th>
-                <th className="py-2 pr-4 font-medium text-right">Actions</th>
+                <th className="py-2 pr-4 font-medium text-right">Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.map((item) => {
                 const days = item.expiryDate ? daysUntil(item.expiryDate) : null;
                 const dualRisk = item.status === "Low Stock" && item.expiryDate && days !== null && days <= 30;
+                const atRisk = item.status === "Low Stock" || item.status === "Out of Stock" || item.status === "Expiring Soon" || dualRisk;
+                const stockPercent = item.minRequired > 0 ? Math.min(100, Math.round((item.currentStock / item.minRequired) * 100)) : 100;
+                const barColor = item.status === "Out of Stock" ? "bg-red-500" : item.status === "Low Stock" ? "bg-amber-500" : "bg-brand-600";
                 return (
-                  <tr key={item.id} className="border-b border-neutral-100 last:border-0">
-                    <td className="py-3 pr-4 font-medium text-neutral-900">{item.name}</td>
-                    <td className="py-3 pr-4 text-neutral-600">{item.category}</td>
-                    <td className="py-3 pr-4 text-neutral-600">
-                      {item.currentStock} {item.unit}
+                  <tr
+                    key={item.id}
+                    onClick={() => setViewItem(item)}
+                    className={cn(
+                      "cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50",
+                      atRisk && "bg-amber-50/40"
+                    )}
+                  >
+                    <td className="py-3 pr-4">
+                      <p className="font-medium text-neutral-900">{item.name}</p>
+                      <p className="text-xs text-neutral-500">{item.category}</p>
                     </td>
-                    <td className="py-3 pr-4 text-neutral-600">
-                      {item.minRequired} {item.unit}
+                    <td className="py-3 pr-4">
+                      <div className="flex flex-col gap-1">
+                        <p className="text-xs text-neutral-600 whitespace-nowrap">
+                          {item.currentStock} / {item.minRequired} {item.unit}
+                        </p>
+                        <div className="h-1.5 w-28 overflow-hidden rounded-full bg-neutral-100">
+                          <div className={cn("h-full rounded-full", barColor)} style={{ width: `${stockPercent}%` }} />
+                        </div>
+                      </div>
                     </td>
                     <td className="py-3 pr-4 text-neutral-600">
                       {item.expiryDate ? (
@@ -277,16 +306,26 @@ export default function Inventory() {
                         {dualRisk && <Badge variant="danger">Also expiring</Badge>}
                       </div>
                     </td>
-                    <td className="py-3 pr-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button variant="ghost" size="sm" onClick={() => setViewItem(item)}>
-                          <Eye className="h-3.5 w-3.5" />
-                          View
-                        </Button>
+                    <td className="py-3 pr-4 text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
                         <Button variant="outline" size="sm" onClick={() => setAdjustItem(item)}>
                           <SlidersHorizontal className="h-3.5 w-3.5" />
                           Adjust Stock
                         </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600" aria-label={`More actions for ${item.name}`}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => setViewItem(item)}>
+                              <Eye className="h-3.5 w-3.5" />
+                              View details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => handleCreateRestockTask(item)}>Create restock task</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                   </tr>
