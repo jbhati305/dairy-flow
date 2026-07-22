@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Droplets, Gauge, Users, IndianRupee, TrendingUp, TrendingDown, AlertTriangle, Sparkles, ArrowRight } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, Sparkles, ArrowRight } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -10,13 +10,13 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { StatCard, MetricStrip } from "@/components/shared/StatCard";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/shared/StatCard";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAppData } from "@/store/AppDataContext";
 import {
   computeAvgYieldPerAnimal,
@@ -27,8 +27,6 @@ import {
   computeInventoryConsumption,
   computeLeadConversion,
   computeMilkToday,
-  computePipelineValue,
-  formatCurrencyCompact,
 } from "@/store/selectors";
 import { TODAY, addDays, formatDate } from "@/lib/date";
 import type { InventoryStatus } from "@/types";
@@ -81,8 +79,6 @@ export default function Reports() {
   );
   const periodChangePercent = prevPeriodTotal > 0 ? Math.round(((totalMilkPeriod - prevPeriodTotal) / prevPeriodTotal) * 1000) / 10 : 0;
 
-  const herdProductivityIndex = Math.round((herd.lactating / herd.total) * 100);
-
   const leadConversion = useMemo(() => computeLeadConversion(state.leads, fromDate, TODAY), [state.leads, fromDate]);
 
   const inventoryAttentionCount = computeInventoryAttentionCount(state.inventory);
@@ -108,8 +104,6 @@ export default function Reports() {
     const stages = ["New Inquiry", "Contacted", "Visit Scheduled", "Proposal Sent", "Negotiation", "Won", "Lost"] as const;
     return stages.map((stage) => ({ stage, count: state.leads.filter((l) => l.stage === stage).length }));
   }, [state.leads]);
-
-  const totalPipelineValue = computePipelineValue(state.leads);
 
   const overdueFollowUps = state.leads.filter(
     (l) => l.stage !== "Won" && l.stage !== "Lost" && l.nextFollowUp && l.nextFollowUp < TODAY
@@ -168,10 +162,7 @@ export default function Reports() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">Reports & Analytics</h2>
-          <p className="text-sm text-neutral-500">Farm-wide performance across production, herd, inventory, and sales.</p>
-        </div>
+        <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">Reports</h2>
         <Select value={period} onValueChange={setPeriod}>
           <SelectTrigger className="w-44">
             <SelectValue />
@@ -186,25 +177,29 @@ export default function Reports() {
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label={`Total Milk (${days}d)`} value={`${totalMilkPeriod.toLocaleString()} L`} icon={Droplets} tone="brand" />
-        <StatCard label="Avg. Yield / Animal" value={`${avgYieldPerAnimal} L`} sublabel="Today" icon={Gauge} tone="brand" />
-        <StatCard
-          label="Lead Conversion"
-          value={hasClosedLeads ? `${leadConversion.rate}%` : "No closed leads yet"}
-          sublabel={hasClosedLeads ? `${leadConversion.won} won of ${leadConversion.won + leadConversion.lost} closed` : "Nothing to measure this period"}
-          icon={Users}
-          tone="brand"
-        />
-        <StatCard label="Pipeline Value" value={formatCurrencyCompact(totalPipelineValue)} sublabel="Active pipeline" icon={IndianRupee} tone="brand" />
-      </div>
+      <p className="text-sm text-neutral-600">
+        {prevPeriodTotal > 0 ? (
+          <>
+            Milk production {periodChangePercent >= 0 ? "increased" : "decreased"}{" "}
+            <span className="font-medium text-neutral-900">{Math.abs(periodChangePercent)}%</span> this period, while{" "}
+            <span className={inventoryAttentionCount > 0 ? "font-medium text-amber-700" : "font-medium text-neutral-900"}>
+              {inventoryAttentionCount} inventory item{inventoryAttentionCount === 1 ? "" : "s"}
+            </span>{" "}
+            need attention.
+          </>
+        ) : (
+          "Not enough historical data yet to compare this period."
+        )}
+      </p>
 
-      <MetricStrip
-        items={[
-          { label: "herd productivity (lactating share)", value: `${herdProductivityIndex}%` },
-          { label: "inventory items need attention", value: inventoryAttentionCount.toString(), tone: inventoryAttentionCount > 0 ? "amber" : "neutral" },
-        ]}
-      />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <StatCard label={`Milk (${days}d)`} value={`${totalMilkPeriod.toLocaleString()} L`} />
+        <StatCard label="Average yield" value={`${avgYieldPerAnimal} L`} />
+        <StatCard
+          label="Lead conversion"
+          value={hasClosedLeads ? `${leadConversion.rate}%` : "No closed leads"}
+        />
+      </div>
 
       <div>
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">Insights</p>
@@ -236,8 +231,7 @@ export default function Reports() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Milk Production Trend</CardTitle>
-            <CardDescription>Daily total across all herds, in litres — last {days} days</CardDescription>
+            <CardTitle>Milk production</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-64 w-full">
@@ -273,15 +267,14 @@ export default function Reports() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Herd Productivity by Breed</CardTitle>
-            <CardDescription>Average daily yield per animal, litres — last {days} days</CardDescription>
+            <CardTitle>Herd productivity by breed</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={breedProductivity} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" horizontal={false} />
-                  <XAxis type="number" tickLine={false} axisLine={false} tick={axisTick} />
+                  <XAxis type="number" tickLine={false} axisLine={false} tick={axisTick} tickFormatter={(v) => `${v} L`} />
                   <YAxis type="category" dataKey="breed" tickLine={false} axisLine={false} tick={axisTick} width={110} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} L/day`, "Avg. Yield"]} />
                   <Bar dataKey="avgYield" fill="#205838" radius={[0, 4, 4, 0]} barSize={18} />
@@ -290,75 +283,85 @@ export default function Reports() {
             </div>
           </CardContent>
         </Card>
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Inventory Stock Health</CardTitle>
-            <CardDescription>Number of items by stock status (current)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={inventoryByStatus} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" vertical={false} />
-                  <XAxis dataKey="status" tickLine={false} axisLine={false} tick={axisTick} interval={0} angle={-15} textAnchor="end" height={50} />
-                  <YAxis tickLine={false} axisLine={false} tick={axisTick} width={32} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} items`, "Count"]} />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                    {inventoryByStatus.map((entry) => (
-                      <Cell key={entry.status} fill={statusColors[entry.status]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+      <div>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">More reports</p>
+        <Tabs defaultValue="inventory">
+          <TabsList>
+            <TabsTrigger value="inventory">Inventory</TabsTrigger>
+            <TabsTrigger value="sales">Sales</TabsTrigger>
+          </TabsList>
+          <TabsContent value="inventory">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <Card className="border-neutral-100">
+                <CardHeader>
+                  <CardTitle className="text-sm text-neutral-600">Stock health</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-56 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={inventoryByStatus} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" vertical={false} />
+                        <XAxis dataKey="status" tickLine={false} axisLine={false} tick={axisTick} interval={0} angle={-15} textAnchor="end" height={50} />
+                        <YAxis tickLine={false} axisLine={false} tick={axisTick} width={32} allowDecimals={false} />
+                        <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} items`, "Count"]} />
+                        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                          {inventoryByStatus.map((entry) => (
+                            <Cell key={entry.status} fill={statusColors[entry.status]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Inventory Consumption</CardTitle>
-            <CardDescription>Consumed + wastage + expired, by category — last {days} days</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={inventoryConsumption} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" vertical={false} />
-                  <XAxis dataKey="category" tickLine={false} axisLine={false} tick={axisTick} interval={0} angle={-15} textAnchor="end" height={50} />
-                  <YAxis tickLine={false} axisLine={false} tick={axisTick} width={40} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} units`, "Consumed"]} />
-                  <Bar dataKey="quantity" fill="#c8811a" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <Card className="border-neutral-100">
+                <CardHeader>
+                  <CardTitle className="text-sm text-neutral-600">Consumption by category</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-56 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={inventoryConsumption} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" vertical={false} />
+                        <XAxis dataKey="category" tickLine={false} axisLine={false} tick={axisTick} interval={0} angle={-15} textAnchor="end" height={50} />
+                        <YAxis tickLine={false} axisLine={false} tick={axisTick} width={40} allowDecimals={false} />
+                        <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} units`, "Consumed"]} />
+                        <Bar dataKey="quantity" fill="#c8811a" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle>Sales Lead Conversion</CardTitle>
-            <CardDescription>Current leads by pipeline stage, including closed outcomes</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={leadFunnelAll} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" vertical={false} />
-                  <XAxis dataKey="stage" tickLine={false} axisLine={false} tick={axisTick} interval={0} angle={-25} textAnchor="end" height={60} />
-                  <YAxis tickLine={false} axisLine={false} tick={axisTick} width={32} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} leads`, "Count"]} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="count" name="Leads" radius={[4, 4, 0, 0]}>
-                    {leadFunnelAll.map((entry) => (
-                      <Cell key={entry.stage} fill={entry.stage === "Won" ? "#3a8d58" : entry.stage === "Lost" ? "#c0392b" : "#3172b6"} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+          </TabsContent>
+          <TabsContent value="sales">
+            <Card className="border-neutral-100">
+              <CardHeader>
+                <CardTitle className="text-sm text-neutral-600">Lead conversion by stage</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-56 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={leadFunnelAll} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e1dc" vertical={false} />
+                      <XAxis dataKey="stage" tickLine={false} axisLine={false} tick={axisTick} interval={0} angle={-25} textAnchor="end" height={60} />
+                      <YAxis tickLine={false} axisLine={false} tick={axisTick} width={32} allowDecimals={false} />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} leads`, "Count"]} />
+                      <Bar dataKey="count" name="Leads" radius={[4, 4, 0, 0]}>
+                        {leadFunnelAll.map((entry) => (
+                          <Cell key={entry.stage} fill={entry.stage === "Won" ? "#3a8d58" : entry.stage === "Lost" ? "#c0392b" : "#3172b6"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

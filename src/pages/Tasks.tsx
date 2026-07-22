@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  ClipboardList,
   AlertTriangle,
-  Flag,
-  CheckCircle2,
   Plus,
   Search,
   Stethoscope,
@@ -15,13 +12,11 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -38,10 +33,8 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { StatCard } from "@/components/shared/StatCard";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/store/AppDataContext";
-import { computeOverdueTasks } from "@/store/selectors";
 import { TODAY, formatDate, addDays } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import type { Task, TaskCategory, TaskPriority, TaskStatus } from "@/types";
@@ -73,22 +66,8 @@ const priorityBadge: Record<TaskPriority, "danger" | "warning" | "neutral"> = {
   Low: "neutral",
 };
 
-const statusBadge: Record<TaskStatus, "warning" | "info" | "success"> = {
-  Pending: "warning",
-  "In Progress": "info",
-  Completed: "success",
-};
-
 function isOverdue(task: Task) {
   return task.dueDate < TODAY && task.status !== "Completed";
-}
-
-function startOfWeek(iso: string) {
-  const d = new Date(iso + "T00:00:00");
-  const day = d.getDay();
-  const diff = (day + 6) % 7;
-  d.setDate(d.getDate() - diff);
-  return d;
 }
 
 interface NewTaskForm {
@@ -115,7 +94,7 @@ export default function Tasks() {
   const { state, addTask, updateTaskStatus } = useAppData();
   const tasks = state.tasks;
 
-  const [statusFilter, setStatusFilter] = useState<"All" | TaskStatus>("All");
+  const [groupFilter, setGroupFilter] = useState<"All" | "Overdue" | "Today" | "Upcoming" | "Completed">("All");
   const [categoryFilter, setCategoryFilter] = useState<"All" | TaskCategory>("All");
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -133,48 +112,49 @@ export default function Tasks() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const stats = useMemo(() => {
-    const pending = tasks.filter((t) => t.status === "Pending").length;
-    const overdue = computeOverdueTasks(tasks).length;
-    const highPriority = tasks.filter((t) => t.priority === "High" && t.status !== "Completed").length;
-    const weekStart = startOfWeek(TODAY);
-    const completedThisWeek = tasks.filter(
-      (t) => t.status === "Completed" && new Date(t.dueDate + "T00:00:00") >= weekStart
-    ).length;
-    return { pending, overdue, highPriority, completedThisWeek };
-  }, [tasks]);
-
   const filteredTasks = useMemo(() => {
     const q = search.trim().toLowerCase();
     return tasks
-      .filter((t) => statusFilter === "All" || t.status === statusFilter)
       .filter((t) => categoryFilter === "All" || t.category === categoryFilter)
       .filter((t) => !q || t.title.toLowerCase().includes(q) || t.relatedRecord.toLowerCase().includes(q))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [tasks, statusFilter, categoryFilter, search]);
+  }, [tasks, categoryFilter, search]);
 
   const next7 = addDays(TODAY, 7);
-  const groups = useMemo(() => {
+  const allGroups = useMemo(() => {
     const overdue: Task[] = [];
     const today: Task[] = [];
     const upcoming: Task[] = [];
-    const later: Task[] = [];
     const completed: Task[] = [];
     for (const t of filteredTasks) {
       if (t.status === "Completed") completed.push(t);
       else if (t.dueDate < TODAY) overdue.push(t);
       else if (t.dueDate === TODAY) today.push(t);
-      else if (t.dueDate <= next7) upcoming.push(t);
-      else later.push(t);
+      else upcoming.push(t);
     }
-    return [
-      { label: "Overdue", tasks: overdue },
-      { label: "Today", tasks: today },
-      { label: "Next 7 Days", tasks: upcoming },
-      { label: "Later", tasks: later },
-      { label: "Completed", tasks: completed },
-    ].filter((g) => g.tasks.length > 0);
+    return { overdue, today, upcoming, completed };
   }, [filteredTasks, next7]);
+
+  const groupTabs: { value: typeof groupFilter; label: string; count: number }[] = [
+    { value: "All", label: "All", count: filteredTasks.length },
+    { value: "Overdue", label: "Overdue", count: allGroups.overdue.length },
+    { value: "Today", label: "Today", count: allGroups.today.length },
+    { value: "Upcoming", label: "Upcoming", count: allGroups.upcoming.length },
+    { value: "Completed", label: "Completed", count: allGroups.completed.length },
+  ];
+
+  const groups = useMemo(() => {
+    const list =
+      groupFilter === "All"
+        ? [
+            { label: "Overdue", tasks: allGroups.overdue },
+            { label: "Today", tasks: allGroups.today },
+            { label: "Upcoming", tasks: allGroups.upcoming },
+            { label: "Completed", tasks: allGroups.completed },
+          ]
+        : [{ label: groupFilter, tasks: allGroups[groupFilter.toLowerCase() as "overdue" | "today" | "upcoming" | "completed"] }];
+    return list.filter((g) => g.tasks.length > 0);
+  }, [allGroups, groupFilter]);
 
   function toggleComplete(task: Task) {
     const nextStatus: TaskStatus = task.status === "Completed" ? "Pending" : "Completed";
@@ -205,16 +185,13 @@ export default function Tasks() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">Tasks & Reminders</h2>
-          <p className="text-sm text-neutral-500">Track vet visits, vaccinations, follow-ups, and more.</p>
-        </div>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">Tasks</h2>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4" />
-              Add Task
+              Add task
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -305,71 +282,64 @@ export default function Tasks() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Pending Tasks" value={stats.pending.toString()} icon={ClipboardList} tone="brand" />
-        <StatCard label="Overdue" value={stats.overdue.toString()} icon={AlertTriangle} tone="red" />
-        <StatCard label="High Priority" value={stats.highPriority.toString()} icon={Flag} tone="amber" />
-        <StatCard label="Completed This Week" value={stats.completedThisWeek.toString()} icon={CheckCircle2} tone="brand" />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-1">
+          {groupTabs.map((g) => (
+            <button
+              key={g.value}
+              onClick={() => setGroupFilter(g.value)}
+              className={cn(
+                "rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                groupFilter === g.value ? "bg-brand-50 font-medium text-brand-800" : "text-neutral-500 hover:bg-neutral-100"
+              )}
+            >
+              {g.label} <span className="text-neutral-400">{g.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+            <Input
+              placeholder="Search title or record..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8 sm:w-56"
+            />
+          </div>
+          <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as "All" | TaskCategory)}>
+            <SelectTrigger className="sm:w-48">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Categories</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader className="gap-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle>All Tasks</CardTitle>
-              <CardDescription>{filteredTasks.length} of {tasks.length} tasks shown</CardDescription>
+      <div className="flex flex-col gap-5">
+        {filteredTasks.length === 0 && <p className="py-8 text-center text-sm text-neutral-500">No tasks match your filters.</p>}
+        {groups.map((group) => (
+          <div key={group.label}>
+            <div className="mb-1.5 flex items-center gap-2">
+              <p
+                className={cn(
+                  "text-xs font-semibold uppercase tracking-wide",
+                  group.label === "Overdue" ? "text-red-600" : "text-neutral-400"
+                )}
+              >
+                {group.label}
+              </p>
+              <span className="text-xs text-neutral-400">({group.tasks.length})</span>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
-                <Input
-                  placeholder="Search title or record..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-8 sm:w-56"
-                />
-              </div>
-              <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as "All" | TaskCategory)}>
-                <SelectTrigger className="sm:w-48">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All Categories</SelectItem>
-                  {categories.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as "All" | TaskStatus)}>
-            <TabsList>
-              <TabsTrigger value="All">All</TabsTrigger>
-              <TabsTrigger value="Pending">Pending</TabsTrigger>
-              <TabsTrigger value="In Progress">In Progress</TabsTrigger>
-              <TabsTrigger value="Completed">Completed</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-5">
-          {filteredTasks.length === 0 && <p className="py-8 text-center text-sm text-neutral-500">No tasks match your filters.</p>}
-          {groups.map((group) => (
-            <div key={group.label}>
-              <div className="mb-1.5 flex items-center gap-2">
-                <p
-                  className={cn(
-                    "text-xs font-semibold uppercase tracking-wide",
-                    group.label === "Overdue" ? "text-red-600" : "text-neutral-400"
-                  )}
-                >
-                  {group.label}
-                </p>
-                <span className="text-xs text-neutral-400">({group.tasks.length})</span>
-              </div>
-              <div className="divide-y divide-neutral-100 rounded-lg border border-neutral-100">
-                {group.tasks.map((task) => {
+            <div className="divide-y divide-neutral-100 rounded-lg border border-neutral-100">
+              {group.tasks.map((task) => {
                   const Icon = categoryIcons[task.category];
                   const overdue = isOverdue(task);
                   const completed = task.status === "Completed";
@@ -381,29 +351,20 @@ export default function Tasks() {
                         completed ? "bg-neutral-25" : "bg-white hover:bg-neutral-50"
                       )}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 p-1 -m-1">
                         <Checkbox
                           checked={completed}
                           onCheckedChange={() => toggleComplete(task)}
                           className="h-5 w-5"
                           aria-label={completed ? "Mark as pending" : "Mark as complete"}
                         />
-                        <span
-                          className={cn(
-                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-                            completed ? "bg-neutral-100 text-neutral-400" : "bg-brand-50 text-brand-700"
-                          )}
-                        >
-                          <Icon className="h-4 w-4" />
-                        </span>
+                        <Icon className={cn("h-4 w-4 shrink-0", completed ? "text-neutral-300" : "text-neutral-400")} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className={cn("text-sm font-medium", completed ? "text-neutral-400 line-through" : "text-neutral-900")}>
                           {task.title}
                         </p>
-                        <p className="mt-0.5 text-xs text-neutral-500">
-                          {task.category} · {task.relatedRecord}
-                        </p>
+                        <p className="mt-0.5 text-xs text-neutral-500">{task.relatedRecord}</p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         <span
@@ -415,8 +376,7 @@ export default function Tasks() {
                           {overdue && <AlertTriangle className="h-3.5 w-3.5" />}
                           {formatDate(task.dueDate)}
                         </span>
-                        <Badge variant={priorityBadge[task.priority]}>{task.priority}</Badge>
-                        {statusFilter !== "All" ? null : <Badge variant={statusBadge[task.status]}>{task.status}</Badge>}
+                        {task.priority === "High" && !completed && <Badge variant={priorityBadge[task.priority]}>High</Badge>}
                       </div>
                     </div>
                   );
@@ -424,8 +384,7 @@ export default function Tasks() {
               </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

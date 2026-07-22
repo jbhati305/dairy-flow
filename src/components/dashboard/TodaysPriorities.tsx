@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertCircle, AlertTriangle, Info, Syringe, TrendingDown, PackageX, UserX, CheckCircle2, MoreHorizontal } from "lucide-react";
 import type { Alert, AlertKind } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -32,7 +32,7 @@ const kindIcon: Record<AlertKind, typeof Syringe> = {
   "follow-up-overdue": UserX,
 };
 
-const VISIBLE_COUNT = 4;
+const VISIBLE_COUNT = 3;
 
 export function TodaysPriorities() {
   const { state, recordVaccination, updateAnimal, addTask, adjustInventory, markLeadContacted, updateLead } = useAppData();
@@ -180,31 +180,21 @@ export function TodaysPriorities() {
 
   return (
     <Card className="flex h-full flex-col">
-      <CardHeader className="flex-row items-start justify-between space-y-0">
-        <div>
-          <CardTitle>Today&apos;s Priorities</CardTitle>
-          <CardDescription>What needs your attention, with one-tap actions</CardDescription>
-        </div>
-        {allAlerts.length > 0 && (
-          <div className="flex shrink-0 items-center gap-1.5">
-            {criticalCount > 0 && (
-              <span className="rounded-full border border-red-100 bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700">
-                {criticalCount} critical
-              </span>
-            )}
-            {warningCount > 0 && (
-              <span className="rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                {warningCount} warning
-              </span>
-            )}
-          </div>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle>Priorities</CardTitle>
+        {(criticalCount > 0 || warningCount > 0) && (
+          <p className="text-xs text-neutral-400">
+            {criticalCount > 0 && `${criticalCount} critical`}
+            {criticalCount > 0 && warningCount > 0 && " · "}
+            {warningCount > 0 && `${warningCount} warning`}
+          </p>
         )}
       </CardHeader>
       <CardContent className="flex flex-1 flex-col">
         {allAlerts.length === 0 && (
-          <div className="flex items-center gap-3 rounded-lg border border-brand-100 bg-brand-50/50 p-4">
-            <CheckCircle2 className="h-5 w-5 text-brand-600" />
-            <p className="text-sm text-brand-800">Nothing urgent today — herd, stock, and follow-ups are all on track.</p>
+          <div className="flex items-center gap-2 py-1 text-sm text-neutral-500">
+            <CheckCircle2 className="h-4 w-4 text-brand-600" />
+            Nothing urgent today.
           </div>
         )}
         <ul className="flex-1 divide-y divide-neutral-100">
@@ -215,14 +205,13 @@ export function TodaysPriorities() {
             const secondary = secondaryActions(alert);
             return (
               <li key={alert.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full border", cfg.classes)}>
-                  <Icon className="h-4 w-4" />
+                <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full border", cfg.classes)}>
+                  <Icon className="h-3.5 w-3.5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-neutral-900">{alert.message}</p>
-                  <p className="text-xs text-neutral-400">{alert.module}</p>
+                  <p className="truncate text-sm text-neutral-900">{alert.message}</p>
                 </div>
-                <Button size="sm" variant="secondary" className="shrink-0" onClick={() => handleAction(alert, primary.action)}>
+                <Button size="sm" variant="ghost" className="shrink-0" onClick={() => handleAction(alert, primary.action)}>
                   {primary.label}
                 </Button>
                 {secondary.length > 0 && (
@@ -250,7 +239,7 @@ export function TodaysPriorities() {
         </ul>
         {allAlerts.length > VISIBLE_COUNT && (
           <Button variant="ghost" size="sm" className="mt-1 w-full" onClick={() => setShowAll((v) => !v)}>
-            {showAll ? "Show fewer" : `View all ${allAlerts.length} priorities`}
+            {showAll ? "Show fewer" : `View all (${allAlerts.length})`}
           </Button>
         )}
       </CardContent>

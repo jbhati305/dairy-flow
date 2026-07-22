@@ -28,9 +28,9 @@ Historical data (90 days of milk production, ~30–40 inventory transactions) is
 ### Dashboard
 ![Dashboard](docs/screenshots/dashboard.png)
 
-- Four primary KPI tiles (herd size, milk produced today, avg. yield/animal, active leads) plus a compact secondary metric strip (low-stock items, week-over-week production, herd on record) — not a wall of six same-sized cards.
-- **Today's Priorities** — a compact, divider-separated list (not nested cards) showing the 4 highest-priority alerts with one primary action per row and an overflow menu for secondary actions (Mark completed, Adjust Stock, Mark contacted, Snooze, Create task); critical/warning counts badge the header, and "View all N priorities" expands the rest in place.
-- Two-column operational layout: 7-day milk production trend (with herd status mini-bars) on the left, Today's Priorities on the right, so the trend is never buried below the fold.
+- Four primary KPI tiles (milk today, average yield, herd health, stock alerts) — plain text values, no colored icon tiles competing for attention.
+- **Priorities** — a compact, divider-separated list showing the 3 highest-priority alerts with one primary action per row; "View all" expands the rest in place.
+- Two-column operational layout: 7-day milk production trend on the left, Priorities on the right, so the trend is never buried below the fold.
 - **Available to Sell** — an estimate of surplus milk for new buyers (today's production, minus a processing reserve, minus litres already committed to signed buyers), with a capacity-gap warning.
 - Recent-activity timeline logged automatically by every write action across the app.
 - **Farm Assistant** — a compact, icon-led floating launcher opening a slide-over chat with text and voice (mic) input. Answers deterministically from the shared store (not a hosted LLM, by design) and includes clickable suggested-question chips and in-chat links to the relevant page.
@@ -38,57 +38,56 @@ Historical data (90 days of milk production, ~30–40 inventory transactions) is
 ### Herd & Health
 ![Herd & Health](docs/screenshots/farm-records.png)
 
-- A scannable table (Animal with avatar/name/ID+age, Breed, Lifecycle status, Milk today, Health, Next action, overflow actions) instead of a ten-column dense grid — sticky header, hover/focus states, and the entire row is clickable.
-- Simplified filters: search, the two most-used dropdowns (lactation, health status) inline, a **More Filters** popover for breed/sort, active filter chips, and Clear all — select labels are never truncated.
+- A scannable table (Animal with avatar/name/ID+age, Breed, Stage, Yield, Health, Next due) — the entire row is clickable and its own overflow menu holds edit/quick-action shortcuts, so no separate View button is needed. "Healthy" renders as plain muted text; badges are reserved for Under Observation / Treatment Required.
+- Simplified filters: search, one Health dropdown inline, a **More Filters** popover for breed/stage/sort, active filter chips, and Clear all — select labels are never truncated.
 - Animal details now open in a **right-side drawer** (not a small centered dialog) with quick actions — **Log health event**, **Record vaccination**, **Add breeding event**, **Record milk yield**, **Create veterinary task** — a health timeline, vaccination/breeding/yield tabs, and any open tasks linked to that animal, completable in place.
 
 ### Milk Production
 ![Milk Production](docs/screenshots/milk-production.png)
 
-- Four primary KPI tiles (morning, evening, total, avg. yield/animal) plus a compact **Quality** panel (fat %, SNF %, rejected/spoiled) — zero rejected milk renders in neutral styling, not as a false alarm.
+- One compact summary line — **Milk today** with the week-over-week change, then Morning/Evening/Average inline, then Fat %/SNF %/Rejected inline — instead of six KPI cards. Zero rejected milk reads as plain neutral text, not a false alarm.
 - 14-day production trend chart with insights (change vs. yesterday, best-performing herd, animals with a meaningful yield decline — clickable through to their record, with correct singular/plural grammar).
 - **Record Production** dialog with auto-computed quality status.
 
 ### Inventory
 ![Inventory](docs/screenshots/inventory.png)
 
-- Each row shows a stock-level progress bar (current vs. minimum), expiry countdown, and status badges — an item that's both low-stock *and* expiring shows both signals, never hides one. At-risk rows get a light amber tint.
-- The "items need attention" banner is clickable and filters the table to just those items.
-- One contextual primary action (**Adjust Stock**) per row plus an overflow menu (View details, Create restock task); the whole row opens the details view.
+- One quiet summary line (total items · low stock · out of stock · expiring soon) replaces the old KPI-card row and warning banner; a **Show attention only** toggle filters the table to at-risk items.
+- Each row shows a stock-level progress bar (current vs. minimum) and an expiry countdown; "In stock" renders as plain text, while Low Stock / Out of Stock / Expiring Soon get badges — an item that's both low-stock *and* expiring shows both signals. At-risk rows get a light amber tint.
+- The whole row opens the details view; **Adjust Stock** appears as a contextual action on hover, with Create restock task in the row's overflow menu.
 - **Adjust Stock** — a transaction-based workflow (Stock In / Consumed / Wastage / Expired / Correction) with date, supplier, and notes, replacing ambiguous balance-editing. Every transaction is stored and feeds the Reports consumption chart.
 
 ### Leads (CRM)
 ![Leads](docs/screenshots/leads.png)
 
-- Four primary metrics (Active Leads, Pipeline Value, Available Surplus, Capacity Gap) plus a secondary strip (required L/day, follow-ups due) instead of six same-sized cards.
-- A **Supply vs. demand** panel replaces the old capacity-warning banner: available surplus, advanced-stage demand, % of capacity used (with a progress bar), shortfall/remaining capacity, and a one-line recommendation.
-- Dairy-specific fields: required litres/day, product type, price/litre, delivery location/distance/timing, trial order status — alongside the standard stage, source, and follow-up fields.
-- Kanban pipeline across 7 stages, minimum 280px columns, sticky stage headers, a right-edge fade cue signaling more columns are scrollable, and intentional empty states per stage. Cards lead with business name, buyer type, required L/day, estimated monthly value, and next follow-up, with a clear **Overdue** badge. Drag-and-drop **and** a reliable "Move to..." menu; quick actions for Mark contacted, Reschedule follow-up, Mark trial complete, Mark Won/Lost.
+- One compact summary line (active leads · pipeline value · follow-ups due · required L/day) and one supply-vs-demand line (available supply · advanced-stage demand · shortfall or "within capacity") replace the old six-card KPI row and banner — the Kanban board starts right below.
+- Dairy-specific fields: required litres/day, product type, price/litre, delivery location/distance/timing, trial order status — alongside the standard stage, source, and follow-up fields (surfaced in the lead drawer, not the card).
+- Kanban pipeline across 7 stages, minimum 280px columns, sticky stage headers, a right-edge fade cue signaling more columns are scrollable, and intentional empty states per stage. Cards lead with business name, buyer type, required L/day, estimated monthly value, and next follow-up (replaced by a plain-text **Overdue** flag when due). Drag-and-drop **and** a reliable "Move to..." menu; quick actions for Mark contacted, Reschedule follow-up, Mark trial complete, Mark Won/Lost.
 - Table view toggle for a denser, sortable alternative to the board.
 
 ### Tasks
 ![Tasks](docs/screenshots/tasks.png)
 
-- Tasks are grouped into **Overdue / Today / Next 7 Days / Later / Completed** sections instead of one long uniformly-bordered list, with a larger checkbox tap target and clear due-date/priority hierarchy.
-- Filterable by category and free-text search; overdue items flagged in red; one-click complete/reopen toggle.
+- Compact tabs with live counts (Overdue / Today / Upcoming / Completed) filter the grouped, divider-separated list — no KPI cards. Completed tasks render muted with strike-through; only High-priority, not-yet-completed tasks get a priority badge.
+- Filterable by category and free-text search; overdue items flagged in red; one-click complete/reopen toggle via a larger checkbox tap target.
 
 ### Reports
 ![Reports](docs/screenshots/reports.png)
 
-- Four primary KPI tiles (total milk, avg. yield/animal, lead conversion, pipeline value) plus a secondary strip (herd productivity, inventory items needing attention). When there are no closed leads in the selected period, conversion reads **"No closed leads yet"** instead of a misleading 0%.
+- One high-level insight sentence up top ("Milk production increased X% this period, while N inventory items need attention"), three primary KPI tiles (milk, average yield, lead conversion — no icon tiles), and compact color-coded insight cards below (positive trend, risk, operational observation, recommended action) — relevant ones deep-link to the related page. No closed leads in the period reads **"No closed leads"**, never a misleading 0%.
 - A working **period selector** (Last 7 / 30 / 90 Days) that re-aggregates every chart and KPI on the page from the same shared selectors used elsewhere.
-- **Insights** as compact, color-coded cards (positive trend, risk, operational observation, recommended action) instead of a plain bullet list — relevant ones deep-link to the related page.
-- Charts: milk production trend, herd productivity by breed (horizontal bars so long breed names never wrap or truncate), inventory stock health and consumption, and sales lead conversion.
+- Two primary charts above the fold — milk production trend and herd productivity by breed (horizontal bars so long breed names never wrap or truncate) — with inventory and sales reports moved into an **Inventory / Sales** tabbed section below, given secondary visual weight.
 
 ### Global search
 Press the search bar (or `⌘K` / `Ctrl K`) anywhere in the app for a command-style dialog searching animals, inventory items, leads, and tasks by name — selecting a result navigates to and opens that record. On desktop the header shows the search bar in place of a repeated page title (the current page name only appears in the mobile header); the header's quick-add control is a compact secondary dropdown so it never competes visually with each page's primary Add button.
 
 ## Design decisions
 
-- Deep green as the primary brand accent on white/neutral surfaces; amber and red are reserved for genuine warning states. Sidebar active-state uses a solid brand-700 fill for strong contrast rather than a light tint.
+- Deep green as the primary brand accent on white/neutral surfaces; amber and red are reserved for genuine warning states, and badges are reserved for meaningful exceptions rather than every ordinary category (e.g. "Healthy" and "In Stock" render as plain muted text).
 - A small shared UI kit (button, card, badge, dialog, select, tabs, dropdown, toast, etc.) is used consistently across every screen, with each module's layout tailored to its primary workflow rather than a repeated "KPI row + table" template everywhere.
-- Three levels of elevation: page background, white panels, and divider-separated internal rows — cards-inside-cards are avoided in favor of dividers wherever a nested card would have been purely structural.
-- KPI rows cap at 4 cards per row on desktop (2 on tablet/mobile); anything beyond the primary metrics moves into a compact secondary strip or panel.
+- Three levels of elevation: neutral page background, white panels with a subtle border (no shadow — shadows are reserved for dialogs, dropdowns, and floating overlays), and divider-separated internal rows instead of cards-inside-cards.
+- Each screen surfaces at most 3–4 primary metrics as plain-text KPI tiles (no colored icon badge per label); everything else lives in a one-line compact summary, a details drawer, or an overflow menu, per a "what does the user need to decide next" standard rather than "what could we show."
+- Every record exposes at most one primary action inline (the row/card itself is clickable); secondary actions live in a three-dot overflow menu.
 - Content is capped at a max width and consistent horizontal padding (16px mobile / 20–24px tablet / 24–32px desktop) so the layout never stretches awkwardly on very wide screens.
 - The header's Quick add menu deep-links into each page's own add dialog (`?new=1`); search results and priority/insight actions deep-link into detail views (`?open=<id>`).
 

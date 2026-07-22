@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Droplets, Sun, Moon, Milk, Gauge, Ban, TrendingDown, TrendingUp } from "lucide-react";
+import { Milk, TrendingDown, TrendingUp } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -30,7 +30,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { StatCard } from "@/components/shared/StatCard";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/store/AppDataContext";
 import { computeAvgYieldPerAnimal, computeDailyTotals, computeHerdSummary, computeMilkToday, computeYieldDeclines } from "@/store/selectors";
@@ -113,8 +112,6 @@ export default function MilkProduction() {
     return { morning, evening, rejected, avgFat: Math.round(avgFat * 10) / 10, avgSnf: Math.round(avgSnf * 10) / 10 };
   }, [todaysEntries]);
 
-  const rejectedPercent = milkToday > 0 ? Math.round((summary.rejected / milkToday) * 1000) / 10 : 0;
-
   const insight = useMemo(() => {
     const yesterdayTotal = yesterdaysEntries.reduce((s, e) => s + e.morningYield + e.eveningYield, 0);
     const changePercent = yesterdayTotal > 0 ? Math.round(((milkToday - yesterdayTotal) / yesterdayTotal) * 1000) / 10 : 0;
@@ -178,79 +175,37 @@ export default function MilkProduction() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">Milk Production</h2>
-          <p className="text-sm text-neutral-500">Track daily yield, quality, and rejections across herds.</p>
-        </div>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">Milk production</h2>
         <Button onClick={() => setDialogOpen(true)}>
           <Milk className="h-4 w-4" />
-          Record Production
+          Record production
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Morning Production" value={`${summary.morning.toLocaleString()} L`} icon={Sun} tone="brand" />
-        <StatCard label="Evening Production" value={`${summary.evening.toLocaleString()} L`} icon={Moon} tone="brand" />
-        <StatCard label="Total Production" value={`${milkToday.toLocaleString()} L`} sublabel="Today, all herds" icon={Droplets} tone="brand" />
-        <StatCard label="Avg Yield / Animal" value={`${avgYield} L`} sublabel={`${herd.lactating} lactating animals`} icon={Gauge} tone="brand" />
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-baseline gap-3">
+          <p className="text-[13px] text-neutral-500">Milk today</p>
+          <p className="text-[28px] font-semibold leading-tight tracking-tight text-neutral-900">{milkToday.toLocaleString()} L</p>
+          <span className={cn("text-sm font-medium", insight.changePercent >= 0 ? "text-brand-600" : "text-red-600")}>
+            {insight.changePercent >= 0 ? "+" : ""}
+            {insight.changePercent}%
+          </span>
+        </div>
+        <p className="text-sm text-neutral-500">
+          Morning {summary.morning.toLocaleString()} L · Evening {summary.evening.toLocaleString()} L · Average {avgYield} L
+        </p>
+        <p className="text-sm text-neutral-500">
+          Fat {summary.avgFat}% · SNF {summary.avgSnf}% ·{" "}
+          <span className={summary.rejected > 0 ? "font-medium text-red-600" : ""}>
+            Rejected {summary.rejected.toLocaleString()} L
+          </span>
+        </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Quality — Today</CardTitle>
-          <CardDescription>Fat, SNF, and rejected milk across all herds</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="flex items-center gap-3 rounded-lg border border-neutral-100 p-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
-              <Gauge className="h-4 w-4" />
-            </span>
-            <div>
-              <p className="text-xs text-neutral-500">Fat %</p>
-              <p className="text-lg font-semibold text-neutral-900">{summary.avgFat}%</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg border border-neutral-100 p-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
-              <Gauge className="h-4 w-4" />
-            </span>
-            <div>
-              <p className="text-xs text-neutral-500">SNF %</p>
-              <p className="text-lg font-semibold text-neutral-900">{summary.avgSnf}%</p>
-            </div>
-          </div>
-          <div
-            className={cn(
-              "flex items-center gap-3 rounded-lg border p-3",
-              summary.rejected > 0 ? "border-red-100 bg-red-50/40" : "border-neutral-100"
-            )}
-          >
-            <span
-              className={cn(
-                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-                summary.rejected > 0 ? "bg-red-50 text-red-600" : "bg-brand-50 text-brand-700"
-              )}
-            >
-              <Ban className="h-4 w-4" />
-            </span>
-            <div>
-              <p className="text-xs text-neutral-500">Rejected / spoiled</p>
-              <p className={cn("text-lg font-semibold", summary.rejected > 0 ? "text-red-700" : "text-neutral-900")}>
-                {summary.rejected.toLocaleString()} L
-                {milkToday > 0 && <span className="ml-1 text-xs font-normal text-neutral-500">({rejectedPercent}%)</span>}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <div>
-            <CardTitle>Production Trend — Last 14 Days</CardTitle>
-            <CardDescription>Daily total across all herds, in litres</CardDescription>
-          </div>
+          <CardTitle>Production</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-64 w-full">
@@ -270,7 +225,14 @@ export default function MilkProduction() {
                   tick={{ fill: "#7c7a73", fontSize: 11 }}
                   tickFormatter={(d) => formatDate(d).slice(0, 6)}
                 />
-                <YAxis tickLine={false} axisLine={false} tick={{ fill: "#7c7a73", fontSize: 12 }} width={48} domain={["dataMin - 40", "dataMax + 40"]} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: "#7c7a73", fontSize: 12 }}
+                  width={48}
+                  domain={["dataMin - 40", "dataMax + 40"]}
+                  tickFormatter={(v) => `${v} L`}
+                />
                 <Tooltip
                   contentStyle={{ borderRadius: 8, border: "1px solid #e2e1dc", fontSize: 12, boxShadow: "var(--shadow-panel)" }}
                   labelFormatter={(d) => formatDate(String(d))}

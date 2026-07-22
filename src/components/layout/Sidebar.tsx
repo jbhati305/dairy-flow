@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Milk, MapPin, X } from "lucide-react";
+import { Milk, X } from "lucide-react";
 import { navItems } from "./nav";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -52,10 +52,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               onClick={onClose}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
                   isActive
-                    ? "bg-brand-700 text-white shadow-sm"
-                    : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+                    ? "bg-brand-50 font-medium text-brand-800"
+                    : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
                 )
               }
             >
@@ -65,22 +65,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           ))}
         </nav>
 
-        <div className="border-t border-neutral-200 p-4">
-          <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-            <Avatar className="h-9 w-9">
+        <div className="border-t border-neutral-100 p-3">
+          <div className="flex items-center gap-3 rounded-lg px-2 py-2">
+            <Avatar className="h-8 w-8">
               <AvatarFallback>JB</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-neutral-900">Jitesh Bhati</p>
-              <p className="truncate text-xs text-neutral-500">Farm Manager</p>
+              <p className="truncate text-xs text-neutral-400">Bhati Dairy Farm</p>
             </div>
-          </div>
-          <div className="mt-3 space-y-1 px-1">
-            <p className="text-xs font-medium text-neutral-700">Bhati Dairy Farm</p>
-            <p className="flex items-center gap-1 text-xs text-neutral-500">
-              <MapPin className="h-3 w-3" />
-              Jodhpur, Rajasthan
-            </p>
           </div>
         </div>
       </aside>

@@ -1,6 +1,5 @@
-import { MoreHorizontal, Droplets, Wallet, Clock } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import type { Lead, LeadStage } from "@/types";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -32,7 +31,7 @@ export function LeadCard({ lead, stages, onOpen, onMoveStage, onMarkContacted, o
       draggable
       onDragStart={(e) => onDragStart(e, lead.id)}
       onClick={() => onOpen(lead)}
-      className="cursor-pointer rounded-lg border border-neutral-200 bg-white p-3 shadow-[var(--shadow-card)] transition-colors hover:border-brand-300"
+      className="cursor-pointer rounded-lg border border-neutral-200 bg-white p-3 transition-colors hover:border-brand-300"
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium text-neutral-900 leading-snug">{lead.businessName}</p>
@@ -74,23 +73,15 @@ export function LeadCard({ lead, stages, onOpen, onMoveStage, onMarkContacted, o
 
       <p className="mt-1 text-xs text-neutral-500">{lead.buyerType}</p>
 
-      <div className="mt-2.5 flex items-center gap-4">
-        <span className="flex items-center gap-1.5 text-sm font-medium text-neutral-800">
-          <Droplets className="h-3.5 w-3.5 text-brand-600" />
-          {lead.requiredQuantity} L/day
-        </span>
-        <span className="flex items-center gap-1.5 text-sm font-medium text-neutral-800">
-          <Wallet className="h-3.5 w-3.5 text-brand-600" />
-          {formatCurrency(lead.estimatedMonthlyValue)}/mo
-        </span>
+      <div className="mt-2.5 flex items-center justify-between text-sm">
+        <span className="font-medium text-neutral-800">{lead.requiredQuantity} L/day</span>
+        <span className="font-medium text-neutral-800">{formatCurrency(lead.estimatedMonthlyValue)}/mo</span>
       </div>
 
-      <div className="mt-2.5 flex items-center justify-between border-t border-neutral-100 pt-2">
-        <span className="flex items-center gap-1 text-xs text-neutral-400">
-          <Clock className="h-3 w-3" />
-          Next: {formatDate(lead.nextFollowUp)}
+      <div className="mt-2 flex items-center justify-between border-t border-neutral-100 pt-2">
+        <span className={overdue ? "text-xs font-medium text-red-600" : "text-xs text-neutral-400"}>
+          {overdue ? "Overdue" : `Next: ${formatDate(lead.nextFollowUp)}`}
         </span>
-        {overdue && <Badge variant="danger">Overdue</Badge>}
       </div>
     </div>
   );

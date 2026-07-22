@@ -5,7 +5,6 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-  Eye,
   Pencil,
   Beef,
   FilterX,
@@ -193,151 +192,133 @@ export default function FarmRecords() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Herd & Health</h1>
-          <p className="text-sm text-neutral-500">
-            Manage cattle records, health history, and breeding information.
-          </p>
-        </div>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Herd & Health</h1>
         <Button onClick={() => setAddOpen(true)}>
           <Plus className="h-4 w-4" />
-          Add Animal
+          Add animal
         </Button>
       </div>
 
-      <Card className="p-4">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative min-w-[220px] flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-              <Input
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                placeholder="Search by ID or name..."
-                className="pl-8"
-                aria-label="Search animals by ID or name"
-              />
-            </div>
-
-            <Select value={lactationFilter} onValueChange={handleFilterChange(setLactationFilter)}>
-              <SelectTrigger className="w-[200px]" aria-label="Filter by lactation status">
-                <SelectValue placeholder="Lactation status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_VALUE}>All lactation statuses</SelectItem>
-                {lactationStatuses.map((l) => (
-                  <SelectItem key={l} value={l}>
-                    {l}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={healthFilter} onValueChange={handleFilterChange(setHealthFilter)}>
-              <SelectTrigger className="w-[190px]" aria-label="Filter by health status">
-                <SelectValue placeholder="Health status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_VALUE}>All health statuses</SelectItem>
-                {healthStatuses.map((h) => (
-                  <SelectItem key={h} value={h}>
-                    {h}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                  More Filters
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-64">
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-neutral-700">Breed</label>
-                    <Select value={breedFilter} onValueChange={handleFilterChange(setBreedFilter)}>
-                      <SelectTrigger aria-label="Filter by breed">
-                        <SelectValue placeholder="Breed" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={ALL_VALUE}>All breeds</SelectItem>
-                        {breeds.map((b) => (
-                          <SelectItem key={b} value={b}>
-                            {b}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-neutral-700">Sort by</label>
-                    <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortField)}>
-                      <SelectTrigger aria-label="Sort animals">
-                        <SelectValue placeholder="Sort by" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sortOptions.map((s) => (
-                          <SelectItem key={s.value} value={s.value}>
-                            {s.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            {(search || breedFilter !== ALL_VALUE || healthFilter !== ALL_VALUE || lactationFilter !== ALL_VALUE) && (
-              <Button variant="ghost" size="sm" onClick={resetFilters}>
-                <FilterX className="h-4 w-4" />
-                Clear all
-              </Button>
-            )}
+      <div className="flex flex-col gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search by ID or name..."
+              className="pl-8"
+              aria-label="Search animals by ID or name"
+            />
           </div>
 
-          {(breedFilter !== ALL_VALUE || healthFilter !== ALL_VALUE || lactationFilter !== ALL_VALUE) && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {breedFilter !== ALL_VALUE && (
-                <span className="flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800">
-                  {breedFilter}
-                  <button onClick={() => handleFilterChange(setBreedFilter)(ALL_VALUE)} aria-label="Remove breed filter">
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              )}
-              {healthFilter !== ALL_VALUE && (
-                <span className="flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800">
-                  {healthFilter}
-                  <button onClick={() => handleFilterChange(setHealthFilter)(ALL_VALUE)} aria-label="Remove health filter">
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              )}
-              {lactationFilter !== ALL_VALUE && (
-                <span className="flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800">
-                  {lactationFilter}
-                  <button onClick={() => handleFilterChange(setLactationFilter)(ALL_VALUE)} aria-label="Remove lactation filter">
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              )}
-            </div>
-          )}
+          <Select value={healthFilter} onValueChange={handleFilterChange(setHealthFilter)}>
+            <SelectTrigger className="w-[180px]" aria-label="Filter by health status">
+              <SelectValue placeholder="Health" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_VALUE}>All health statuses</SelectItem>
+              {healthStatuses.map((h) => (
+                <SelectItem key={h} value={h}>
+                  {h}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <p className="text-xs text-neutral-500">
-            Showing {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–
-            {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} animals
-          </p>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm">
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                More filters
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-64">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-neutral-700">Breed</label>
+                  <Select value={breedFilter} onValueChange={handleFilterChange(setBreedFilter)}>
+                    <SelectTrigger aria-label="Filter by breed">
+                      <SelectValue placeholder="Breed" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL_VALUE}>All breeds</SelectItem>
+                      {breeds.map((b) => (
+                        <SelectItem key={b} value={b}>
+                          {b}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-neutral-700">Stage</label>
+                  <Select value={lactationFilter} onValueChange={handleFilterChange(setLactationFilter)}>
+                    <SelectTrigger aria-label="Filter by stage">
+                      <SelectValue placeholder="Stage" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL_VALUE}>All stages</SelectItem>
+                      {lactationStatuses.map((l) => (
+                        <SelectItem key={l} value={l}>
+                          {l}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-neutral-700">Sort by</label>
+                  <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortField)}>
+                    <SelectTrigger aria-label="Sort animals">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sortOptions.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {(search || breedFilter !== ALL_VALUE || healthFilter !== ALL_VALUE || lactationFilter !== ALL_VALUE) && (
+            <Button variant="ghost" size="sm" onClick={resetFilters}>
+              <FilterX className="h-4 w-4" />
+              Clear all
+            </Button>
+          )}
         </div>
-      </Card>
+
+        {(breedFilter !== ALL_VALUE || lactationFilter !== ALL_VALUE) && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {breedFilter !== ALL_VALUE && (
+              <span className="flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs text-neutral-700">
+                {breedFilter}
+                <button onClick={() => handleFilterChange(setBreedFilter)(ALL_VALUE)} aria-label="Remove breed filter">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {lactationFilter !== ALL_VALUE && (
+              <span className="flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs text-neutral-700">
+                {lactationFilter}
+                <button onClick={() => handleFilterChange(setLactationFilter)(ALL_VALUE)} aria-label="Remove stage filter">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
+      </div>
 
       <Card className="overflow-hidden p-0">
         {pageItems.length === 0 ? (
@@ -362,11 +343,11 @@ export default function FarmRecords() {
                 <tr className="border-b border-neutral-200 text-left text-xs font-medium text-neutral-500">
                   <th className="px-4 py-3">Animal</th>
                   <th className="px-4 py-3">Breed</th>
-                  <th className="px-4 py-3">Lifecycle status</th>
-                  <th className="px-4 py-3">Milk today</th>
+                  <th className="px-4 py-3">Stage</th>
+                  <th className="px-4 py-3">Yield</th>
                   <th className="px-4 py-3">Health</th>
-                  <th className="px-4 py-3">Next action</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3">Next due</th>
+                  <th className="px-4 py-3 text-right"></th>
                 </tr>
               </thead>
               <tbody>
@@ -405,9 +386,6 @@ export default function FarmRecords() {
                     <td className="px-4 py-3 whitespace-nowrap text-neutral-700">{formatDate(animal.nextCheckup)}</td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedAnimalId(animal.id)} aria-label={`View details for ${animal.name}`}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button

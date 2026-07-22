@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Menu, Search, Bell, Plus, ChevronDown, RotateCcw } from "lucide-react";
+import { Menu, Search, Bell, Plus, RotateCcw } from "lucide-react";
 import { navItems } from "./nav";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -118,12 +118,9 @@ export function Header({ onMenuClick }: HeaderProps) {
                 <p className="px-4 py-6 text-center text-xs text-neutral-400">Nothing needs attention right now.</p>
               )}
               {alerts.map((a) => (
-                <div key={a.id} className="flex gap-2.5 border-b border-neutral-50 px-4 py-2.5 last:border-0">
-                  <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", severityDot[a.severity])} />
-                  <div className="min-w-0">
-                    <p className="text-xs text-neutral-800 leading-snug">{a.message}</p>
-                    <p className="mt-0.5 text-[11px] text-neutral-400">{a.module}</p>
-                  </div>
+                <div key={a.id} className="flex items-center gap-2.5 border-b border-neutral-50 px-4 py-2.5 last:border-0">
+                  <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", severityDot[a.severity])} />
+                  <p className="min-w-0 truncate text-xs text-neutral-800">{a.message}</p>
                 </div>
               ))}
             </div>
@@ -132,14 +129,12 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="secondary" size="sm" className="gap-1.5">
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Quick add</span>
-              <ChevronDown className="h-3.5 w-3.5 opacity-70" />
-            </Button>
+            <button className="rounded-md p-2 text-neutral-500 hover:bg-neutral-100" aria-label="Quick add">
+              <Plus className="h-4.5 w-4.5" />
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>Quick actions</DropdownMenuLabel>
+            <DropdownMenuLabel>Quick add</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {addActions.map((a) => (
               <DropdownMenuItem key={a.path} onSelect={() => navigate(`${a.path}?new=1`)}>

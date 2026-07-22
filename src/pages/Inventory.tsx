@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertTriangle, Boxes, PackageX, CalendarClock, Search, Plus, SlidersHorizontal, Eye, MoreHorizontal } from "lucide-react";
+import { Search, Plus, MoreHorizontal } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -27,7 +27,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
-import { StatCard } from "@/components/shared/StatCard";
 import { AdjustStockDialog } from "@/components/inventory/AdjustStockDialog";
 import { ItemDetailsDialog } from "@/components/inventory/ItemDetailsDialog";
 import { useAppData } from "@/store/AppDataContext";
@@ -175,85 +174,68 @@ export default function Inventory() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Inventory</h1>
-          <p className="text-sm text-neutral-500">Track feed, medicine, and supply stock across the farm.</p>
-        </div>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Inventory</h1>
+        <Button onClick={() => setAddOpen(true)}>
+          <Plus className="h-4 w-4" />
+          Add item
+        </Button>
       </div>
 
-      {attentionItems.length > 0 && (
-        <button
-          onClick={() => setAttentionOnly((v) => !v)}
-          className={cn(
-            "flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors",
-            attentionOnly ? "border-amber-300 bg-amber-100" : "border-amber-200 bg-amber-50 hover:bg-amber-100/70"
-          )}
-        >
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-          <div>
-            <p className="text-sm font-medium text-amber-800">
-              {attentionItems.length} item{attentionItems.length > 1 ? "s" : ""} need attention
-            </p>
-            <p className="text-xs text-amber-700 mt-0.5">
-              {counts.out > 0 && `${counts.out} out of stock`}
-              {counts.out > 0 && counts.low > 0 && ", "}
-              {counts.low > 0 && `${counts.low} running low`}. {attentionOnly ? "Showing filtered list — click to clear." : "Click to filter the list below."}
-            </p>
-          </div>
-        </button>
-      )}
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Total Items" value={String(counts.total)} icon={Boxes} tone="brand" />
-        <StatCard label="Low Stock" value={String(counts.low)} icon={AlertTriangle} tone="amber" />
-        <StatCard label="Out of Stock" value={String(counts.out)} icon={PackageX} tone="red" />
-        <StatCard label="Expiring Soon" value={String(counts.expiring)} icon={CalendarClock} tone="amber" />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-neutral-500">
+          {counts.total} items · {counts.low} low stock · {counts.out} out of stock · {counts.expiring} expiring soon
+        </p>
+        {attentionItems.length > 0 && (
+          <button
+            onClick={() => setAttentionOnly((v) => !v)}
+            className={cn(
+              "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+              attentionOnly ? "border-amber-300 bg-amber-100 text-amber-800" : "border-neutral-200 text-neutral-600 hover:bg-neutral-100"
+            )}
+          >
+            {attentionOnly ? "Showing attention only" : "Show attention only"}
+          </button>
+        )}
       </div>
 
-      <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[var(--shadow-card)]">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative w-full sm:max-w-xs">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-              <Input
-                placeholder="Search by name or supplier..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8"
-              />
-            </div>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                {statuses.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="rounded-xl border border-neutral-200 bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+            <Input
+              placeholder="Search by name or supplier..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8"
+            />
           </div>
-          <Button onClick={() => setAddOpen(true)} className="shrink-0">
-            <Plus className="h-4 w-4" />
-            Add Item
-          </Button>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-full sm:w-44">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-40">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              {statuses.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="mt-4 overflow-x-auto">
@@ -279,7 +261,7 @@ export default function Inventory() {
                     key={item.id}
                     onClick={() => setViewItem(item)}
                     className={cn(
-                      "cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50",
+                      "group cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50",
                       atRisk && "bg-amber-50/40"
                     )}
                   >
@@ -309,15 +291,18 @@ export default function Inventory() {
                     </td>
                     <td className="py-3 pr-4">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge variant={statusBadgeVariant[item.status]}>{item.status}</Badge>
+                        {item.status === "In Stock" ? (
+                          <span className="text-sm text-neutral-500">In stock</span>
+                        ) : (
+                          <Badge variant={statusBadgeVariant[item.status]}>{item.status}</Badge>
+                        )}
                         {dualRisk && <Badge variant="danger">Also expiring</Badge>}
                       </div>
                     </td>
                     <td className="py-3 pr-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                         <Button variant="outline" size="sm" onClick={() => setAdjustItem(item)}>
-                          <SlidersHorizontal className="h-3.5 w-3.5" />
-                          Adjust Stock
+                          Adjust stock
                         </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -326,10 +311,6 @@ export default function Inventory() {
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => setViewItem(item)}>
-                              <Eye className="h-3.5 w-3.5" />
-                              View details
-                            </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => handleCreateRestockTask(item)}>Create restock task</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
